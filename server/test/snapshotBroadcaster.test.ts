@@ -54,65 +54,59 @@ function messageTimestamps(client: FakeClient): number[] {
 }
 
 describe("SnapshotBroadcaster", () => {
-  it("drops an older snapshot when it finishes after a newer request", async () => {
-    const first = deferred<FleetSnapshot>();
-    const second = deferred<FleetSnapshot>();
-    const builds = [first, second];
-    let buildIndex = 0;
+  it("serializes builds and drops a stale in-flight delivery after a newer request", async () => {
+    const builds: Deferred<FleetSnapshot>[] = [];
     const broadcaster = new SnapshotBroadcaster(() => {
-      const build = builds[buildIndex];
-      buildIndex += 1;
-      if (build === undefined) throw new Error("unexpected snapshot build");
+      const build = deferred<FleetSnapshot>();
+      builds.push(build);
       return build.promise;
     });
     const client = new FakeClient();
 
     const olderBroadcast = broadcaster.broadcast([client]);
+    expect(builds).toHaveLength(1);
     const newerSend = broadcaster.sendTo(client);
+    expect(builds).toHaveLength(1);
 
-    second.resolve(snapshot(2));
-    await newerSend;
-    expect(messageTimestamps(client)).toEqual([2]);
-
-    first.resolve(snapshot(1));
+    builds[0]?.resolve(snapshot(1));
     await olderBroadcast;
+    expect(messageTimestamps(client)).toEqual([]);
+    expect(builds).toHaveLength(2);
+
+    builds[1]?.resolve(snapshot(2));
+    await newerSend;
     expect(messageTimestamps(client)).toEqual([2]);
   });
 
-  it("drops an older snapshot once a newer request starts for the same client", async () => {
-    const first = deferred<FleetSnapshot>();
-    const second = deferred<FleetSnapshot>();
-    const builds = [first, second];
-    let buildIndex = 0;
+  it("coalesces multiple requests into one pending rebuild while a build is active", async () => {
+    const builds: Deferred<FleetSnapshot>[] = [];
     const broadcaster = new SnapshotBroadcaster(() => {
-      const build = builds[buildIndex];
-      buildIndex += 1;
-      if (build === undefined) throw new Error("unexpected snapshot build");
+      const build = deferred<FleetSnapshot>();
+      builds.push(build);
       return build.promise;
     });
     const client = new FakeClient();
 
-    const olderBroadcast = broadcaster.broadcast([client]);
-    const newerSend = broadcaster.sendTo(client);
+    const firstBroadcast = broadcaster.broadcast([client]);
+    const secondBroadcast = broadcaster.broadcast([client]);
+    const thirdSend = broadcaster.sendTo(client);
 
-    first.resolve(snapshot(1));
-    await olderBroadcast;
+    expect(builds).toHaveLength(1);
+    builds[0]?.resolve(snapshot(1));
+    await firstBroadcast;
     expect(messageTimestamps(client)).toEqual([]);
+    expect(builds).toHaveLength(2);
 
-    second.resolve(snapshot(2));
-    await newerSend;
+    builds[1]?.resolve(snapshot(2));
+    await Promise.all([secondBroadcast, thirdSend]);
     expect(messageTimestamps(client)).toEqual([2]);
   });
 
   it("keeps pending first snapshots independent across clients", async () => {
-    const first = deferred<FleetSnapshot>();
-    const second = deferred<FleetSnapshot>();
-    const builds = [first, second];
-    let buildIndex = 0;
+    const builds: Deferred<FleetSnapshot>[] = [];
     const broadcaster = new SnapshotBroadcaster(() => {
-      const build = builds[buildIndex];
-      buildIndex += 1;
-      if (build === undefined) throw new Error("unexpected snapshot build");
+      const build = deferred<FleetSnapshot>();
+      builds.push(build);
       return build.promise;
     });
     const firstClient = new FakeClient();
@@ -121,13 +115,15 @@ describe("SnapshotBroadcaster", () => {
     const firstSend = broadcaster.sendTo(firstClient);
     const secondSend = broadcaster.sendTo(secondClient);
 
-    second.resolve(snapshot(2));
-    await secondSend;
-    expect(messageTimestamps(firstClient)).toEqual([]);
-    expect(messageTimestamps(secondClient)).toEqual([2]);
-
-    first.resolve(snapshot(1));
+    expect(builds).toHaveLength(1);
+    builds[0]?.resolve(snapshot(1));
     await firstSend;
+    expect(messageTimestamps(firstClient)).toEqual([1]);
+    expect(messageTimestamps(secondClient)).toEqual([]);
+    expect(builds).toHaveLength(2);
+
+    builds[1]?.resolve(snapshot(2));
+    await secondSend;
     expect(messageTimestamps(firstClient)).toEqual([1]);
     expect(messageTimestamps(secondClient)).toEqual([2]);
   });

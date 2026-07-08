@@ -20,5 +20,8 @@ export function watchFmHome(fmHome: string, onChange: () => void, debounceMs = 3
     persistent: true,
   });
   watcher.on("all", debounced);
+  watcher.on("error", (error) => {
+    console.error("FM home watcher error", error);
+  });
   return watcher;
 }

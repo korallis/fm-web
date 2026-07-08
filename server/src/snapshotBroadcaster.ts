@@ -16,8 +16,15 @@ interface SnapshotRequest {
   payload: Promise<SnapshotPayload>;
 }
 
+interface QueuedSnapshotRequest extends SnapshotRequest {
+  resolve(payload: SnapshotPayload): void;
+  reject(error: unknown): void;
+}
+
 export class SnapshotBroadcaster {
   private nextSequence = 0;
+  private activeBuild = false;
+  private queuedRequest: QueuedSnapshotRequest | null = null;
   private readonly latestRequestedSequence = new WeakMap<SnapshotClient, number>();
   private readonly lastDeliveredSequence = new WeakMap<SnapshotClient, number>();
 
@@ -42,11 +49,51 @@ export class SnapshotBroadcaster {
 
   private requestPayload(): SnapshotRequest {
     const sequence = (this.nextSequence += 1);
-    const payload = this.buildSnapshot().then((snapshot) => ({
+    if (this.activeBuild) {
+      if (this.queuedRequest !== null) return this.queuedRequest;
+      const request = this.createQueuedRequest(sequence);
+      this.queuedRequest = request;
+      return request;
+    }
+    return { sequence, payload: this.runBuild(sequence) };
+  }
+
+  private createQueuedRequest(sequence: number): QueuedSnapshotRequest {
+    let resolvePayload: (payload: SnapshotPayload) => void = () => {
+      throw new Error("queued snapshot request was not initialized");
+    };
+    let rejectPayload: (error: unknown) => void = () => {
+      throw new Error("queued snapshot request was not initialized");
+    };
+    const payload = new Promise<SnapshotPayload>((resolve, reject) => {
+      resolvePayload = resolve;
+      rejectPayload = reject;
+    });
+    return {
       sequence,
-      message: JSON.stringify(snapshot),
-    }));
-    return { sequence, payload };
+      payload,
+      resolve: (value) => resolvePayload(value),
+      reject: (error) => rejectPayload(error),
+    };
+  }
+
+  private async runBuild(sequence: number): Promise<SnapshotPayload> {
+    this.activeBuild = true;
+    try {
+      const snapshot = await this.buildSnapshot();
+      return {
+        sequence,
+        message: JSON.stringify(snapshot),
+      };
+    } finally {
+      const queued = this.queuedRequest;
+      if (queued === null) {
+        this.activeBuild = false;
+      } else {
+        this.queuedRequest = null;
+        this.runBuild(queued.sequence).then(queued.resolve, queued.reject);
+      }
+    }
   }
 
   private markRequested(clients: readonly SnapshotClient[], sequence: number): void {

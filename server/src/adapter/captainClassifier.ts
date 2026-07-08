@@ -8,7 +8,13 @@ export function isCaptainRelevant(text: string, re: RegExp = FM_CAPTAIN_RE_DEFAU
 
 /** Build a classifier regex from an `FM_CAPTAIN_RE` env override, if set. */
 export function captainRegexFromEnv(env: Record<string, string | undefined>): RegExp {
-  const override = env["FM_CAPTAIN_RE"];
+  const override = env["FM_CAPTAIN_RE"]?.trim();
   if (override === undefined || override === "") return FM_CAPTAIN_RE_DEFAULT;
-  return new RegExp(override, "i");
+  try {
+    return new RegExp(override, "i");
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`Ignoring invalid FM_CAPTAIN_RE override; using default: ${reason}`);
+    return FM_CAPTAIN_RE_DEFAULT;
+  }
 }
