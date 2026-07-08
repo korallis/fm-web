@@ -75,6 +75,27 @@ describe("buildFleetSnapshot against the sanitized fixture home", () => {
     expect(taskA1?.worktreePresent).toBe(false);
   });
 
+  it("marks worktreePresent false when the meta worktree path is a file", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      const worktreePath = join(fmHome, "worktree-placeholder");
+      mkdirSync(join(fmHome, "bin"), { recursive: true });
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      mkdirSync(join(fmHome, "data"), { recursive: true });
+      writeFileSync(worktreePath, "not a directory\n");
+      writeFileSync(join(fmHome, "state", "task-a1.meta"), `kind=ship\nworktree=${worktreePath}\n`);
+      writeFileSync(join(fmHome, "bin", "fm-crew-state.sh"), "#!/bin/sh\nprintf 'unknown (none): test\\n'\n");
+      chmodSync(join(fmHome, "bin", "fm-crew-state.sh"), 0o755);
+
+      const snapshot = await buildFleetSnapshot(fmHome);
+      const taskA1 = snapshot.tasks.find((t) => t.id === "task-a1");
+
+      expect(taskA1?.worktreePresent).toBe(false);
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
   it("cross-references the in-flight backlog entry for a spawned task", async () => {
     const snapshot = await buildFleetSnapshot(FIXTURE_HOME);
     const taskA1 = snapshot.tasks.find((t) => t.id === "task-a1");

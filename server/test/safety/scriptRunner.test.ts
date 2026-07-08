@@ -48,6 +48,36 @@ describe("runReadOnlyScript", () => {
     expect(result.stdout).toContain("stub peek output for relative-home");
   });
 
+  it("times out an allowlisted read-only script", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "bin"), { recursive: true });
+      writeFileSync(join(fmHome, "bin", "fm-peek.sh"), "#!/bin/sh\nsleep 2\nprintf done\n");
+      chmodSync(join(fmHome, "bin", "fm-peek.sh"), 0o755);
+
+      await expect(runReadOnlyScript(fmHome, "fm-peek.sh", [], { timeoutMs: 25 })).rejects.toThrow(
+        /timed out/,
+      );
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an allowlisted read-only script that exceeds the output cap", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "bin"), { recursive: true });
+      writeFileSync(join(fmHome, "bin", "fm-peek.sh"), "#!/bin/sh\nprintf abcdef\n");
+      chmodSync(join(fmHome, "bin", "fm-peek.sh"), 0o755);
+
+      await expect(runReadOnlyScript(fmHome, "fm-peek.sh", [], { maxOutputBytes: 3 })).rejects.toThrow(
+        /output exceeded/,
+      );
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
   it("clears firstmate path overrides before running child scripts", async () => {
     const originalEnv: FirstmatePathOverrideEnv = {
       FM_ROOT: process.env["FM_ROOT"],

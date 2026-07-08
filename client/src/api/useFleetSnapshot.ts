@@ -12,6 +12,13 @@ async function fetchFleetSnapshot(): Promise<FleetSnapshot> {
   return (await res.json()) as FleetSnapshot;
 }
 
+export function preferNewestSnapshot(
+  current: FleetSnapshot | undefined,
+  incoming: FleetSnapshot,
+): FleetSnapshot {
+  return current !== undefined && current.generatedAtMs > incoming.generatedAtMs ? current : incoming;
+}
+
 export interface FleetSnapshotState {
   snapshot: FleetSnapshot | undefined;
   isLoading: boolean;
@@ -23,7 +30,12 @@ export interface FleetSnapshotState {
 export function useFleetSnapshot(): FleetSnapshotState {
   const queryClient = useQueryClient();
   const [wsConnected, setWsConnected] = useState(false);
-  const query = useQuery({ queryKey: FLEET_QUERY_KEY, queryFn: fetchFleetSnapshot });
+  const query = useQuery({
+    queryKey: FLEET_QUERY_KEY,
+    queryFn: fetchFleetSnapshot,
+    structuralSharing: (current, incoming) =>
+      preferNewestSnapshot(current as FleetSnapshot | undefined, incoming as FleetSnapshot),
+  });
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -53,7 +65,9 @@ export function useFleetSnapshot(): FleetSnapshotState {
       socket.addEventListener("message", (event) => {
         try {
           const data = JSON.parse(event.data as string) as FleetSnapshot;
-          queryClient.setQueryData(FLEET_QUERY_KEY, data);
+          queryClient.setQueryData<FleetSnapshot>(FLEET_QUERY_KEY, (current) =>
+            preferNewestSnapshot(current, data),
+          );
         } catch {
           // ignore malformed frames
         }

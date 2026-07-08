@@ -56,6 +56,10 @@ function statIfExists(path: string): Stats | null {
   }
 }
 
+function isExistingDirectory(path: string): boolean {
+  return statIfExists(path)?.isDirectory() ?? false;
+}
+
 /** Task ids are recovered from `state/*.meta` filenames — the id-to-file mapping is a firstmate convention. */
 function listTaskIds(fmHome: string): string[] {
   try {
@@ -142,7 +146,7 @@ export async function buildFleetSnapshot(
           isCaptainRelevant(crewState.detail, captainRegex) ||
           (status !== null && isCaptainRelevant(status.raw, captainRegex)),
         backlogRef: findBacklogRef(id, backlog),
-        worktreePresent: meta.worktree !== undefined && existsSync(meta.worktree),
+        worktreePresent: meta.worktree !== undefined && isExistingDirectory(meta.worktree),
       };
     }),
   );
