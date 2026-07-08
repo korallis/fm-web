@@ -12,8 +12,8 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
   const app = new Hono();
 
   app.get("/api/health", (c) => c.json({ ok: true, fmHome }));
-  app.get("/api/fleet", (c) =>
-    c.json(buildFleetSnapshot(fmHome, Date.now(), options.timing, options.captainRegex)),
+  app.get("/api/fleet", async (c) =>
+    c.json(await buildFleetSnapshot(fmHome, Date.now(), options.timing, options.captainRegex)),
   );
 
   return app;

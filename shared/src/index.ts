@@ -116,9 +116,24 @@ export interface CrewStateOutput {
   detail: string;
 }
 
+export const DEFAULT_SERVER_PORT = 4870;
+
+export function parsePortValue(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const port = Number(trimmed);
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+}
+
+export function loadPortFromEnv(env: Record<string, string | undefined>): number {
+  return parsePortValue(env["PORT"]) ?? DEFAULT_SERVER_PORT;
+}
+
 export interface FleetTask {
   id: string;
   meta: CrewMeta;
+  crewState: CrewStateOutput;
   latestStatus: StatusEntry | null;
   captainRelevant: boolean;
   backlogRef: BacklogTask | null;

@@ -3,12 +3,12 @@ import { StateChip } from "./StateChip";
 import { toneForVerb } from "./chipTone";
 
 function TaskCard({ task }: { task: FleetTask }) {
-  const verb = task.latestStatus?.verb ?? "unknown";
+  const state = task.crewState.state;
   return (
     <div className="flex flex-col gap-2 border border-factory-border bg-factory-panel p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-sm text-factory-text">{task.id}</span>
-        <StateChip label={verb} tone={toneForVerb(verb)} />
+        <StateChip label={`${state} / ${task.crewState.source}`} tone={toneForVerb(state)} />
       </div>
       <div className="flex flex-wrap gap-1">
         <StateChip label={task.meta.kind} tone="neutral" />
@@ -21,7 +21,7 @@ function TaskCard({ task }: { task: FleetTask }) {
         {task.captainRelevant && <StateChip label="needs captain" tone="accent" />}
       </div>
       {task.latestStatus !== null && (
-        <p className="line-clamp-3 font-mono text-xs text-factory-dim">{task.latestStatus.note}</p>
+        <p className="line-clamp-3 font-mono text-xs text-factory-dim">latest log: {task.latestStatus.raw}</p>
       )}
     </div>
   );

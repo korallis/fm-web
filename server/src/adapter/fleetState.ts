@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync, type Stats } from "nod
 import type {
   Backlog,
   BacklogTask,
+  CrewStateOutput,
   FleetSnapshot,
   FleetTask,
   LockInfo,
@@ -28,6 +29,8 @@ import { isHarnessPidAlive, parseLock } from "./lock.js";
 import { beaconAgeSeconds, isBeaconFresh } from "./beacon.js";
 import { FM_CAPTAIN_RE_DEFAULT, isCaptainRelevant } from "./captainClassifier.js";
 import { DEFAULT_TIMING } from "./timing.js";
+import { parseCrewStateOutput } from "./crewState.js";
+import { runReadOnlyScript } from "../safety/scriptRunner.js";
 
 function isMissingPathError(error: unknown): boolean {
   if (error === null || typeof error !== "object" || !("code" in error)) return false;
@@ -69,6 +72,22 @@ function findBacklogRef(id: string, backlog: Backlog): BacklogTask | null {
   return backlog.inFlight.find((t) => t.id === id) ?? backlog.queued.find((t) => t.id === id) ?? null;
 }
 
+async function readCrewState(fmHome: string, id: string): Promise<CrewStateOutput> {
+  try {
+    const result = await runReadOnlyScript(fmHome, "fm-crew-state.sh", [id]);
+    const stdoutLine = result.stdout.split(/\r?\n/).find((line) => line.trim() !== "");
+    if (stdoutLine !== undefined) return parseCrewStateOutput(stdoutLine);
+    const stderrLine = result.stderr.split(/\r?\n/).find((line) => line.trim() !== "");
+    return {
+      state: "unknown",
+      source: "none",
+      detail: stderrLine ?? `fm-crew-state.sh exited ${result.exitCode ?? "without a status"}`,
+    };
+  } catch {
+    return { state: "unknown", source: "none", detail: "crew-state unavailable" };
+  }
+}
+
 function buildSupervisionHealth(fmHome: string, timing: TimingConstants, nowMs: number): SupervisionHealth {
   const lockContent = readIfExists(lockPath(fmHome));
   const parsedLock: LockInfo = lockContent === null ? { pid: null, alive: null } : parseLock(lockContent);
@@ -90,12 +109,12 @@ function buildSupervisionHealth(fmHome: string, timing: TimingConstants, nowMs: 
 }
 
 /** Build a full read-only fleet snapshot from a firstmate home. Never writes anything. */
-export function buildFleetSnapshot(
+export async function buildFleetSnapshot(
   fmHome: string,
   nowMs: number = Date.now(),
   timing: TimingConstants = DEFAULT_TIMING,
   captainRegex: RegExp = FM_CAPTAIN_RE_DEFAULT,
-): FleetSnapshot {
+): Promise<FleetSnapshot> {
   const backlogContent = readIfExists(backlogPath(fmHome));
   const backlog: Backlog =
     backlogContent === null ? { inFlight: [], queued: [], done: [] } : parseBacklog(backlogContent);
@@ -106,22 +125,28 @@ export function buildFleetSnapshot(
   const secondmatesContent = readIfExists(secondmatesPath(fmHome));
   const secondmates = secondmatesContent === null ? [] : parseSecondmates(secondmatesContent);
 
-  const tasks: FleetTask[] = [];
-  for (const id of listTaskIds(fmHome)) {
-    const metaContent = readIfExists(metaPath(fmHome, id));
-    if (metaContent === null) continue;
-    const meta = parseMeta(metaContent);
-    const statusContent = readIfExists(statusPath(fmHome, id));
-    const status = statusContent === null ? null : latestStatus(parseStatusLog(statusContent));
-    tasks.push({
-      id,
-      meta,
-      latestStatus: status,
-      captainRelevant: status !== null && isCaptainRelevant(status.raw, captainRegex),
-      backlogRef: findBacklogRef(id, backlog),
-      worktreePresent: meta.worktree !== undefined && existsSync(meta.worktree),
-    });
-  }
+  const taskResults = await Promise.all(
+    listTaskIds(fmHome).map(async (id): Promise<FleetTask | null> => {
+      const metaContent = readIfExists(metaPath(fmHome, id));
+      if (metaContent === null) return null;
+      const meta = parseMeta(metaContent);
+      const statusContent = readIfExists(statusPath(fmHome, id));
+      const status = statusContent === null ? null : latestStatus(parseStatusLog(statusContent));
+      const crewState = await readCrewState(fmHome, id);
+      return {
+        id,
+        meta,
+        crewState,
+        latestStatus: status,
+        captainRelevant:
+          isCaptainRelevant(crewState.detail, captainRegex) ||
+          (status !== null && isCaptainRelevant(status.raw, captainRegex)),
+        backlogRef: findBacklogRef(id, backlog),
+        worktreePresent: meta.worktree !== undefined && existsSync(meta.worktree),
+      };
+    }),
+  );
+  const tasks = taskResults.filter((task): task is FleetTask => task !== null);
 
   return {
     generatedAtMs: nowMs,

@@ -18,12 +18,20 @@ const captainRegex = captainRegexFromEnv(process.env);
 const app = createApp(fmHome, { timing, captainRegex });
 const clients = new Set<WSContext>();
 
+const logSnapshotError = (error: unknown): void => {
+  console.error("Failed to build fleet snapshot", error);
+};
+
+const sendSnapshot = async (client: WSContext): Promise<void> => {
+  client.send(JSON.stringify(await buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex)));
+};
+
 app.get(
   "/ws",
   upgradeWebSocket(() => ({
     onOpen: (_evt, ws) => {
       clients.add(ws);
-      ws.send(JSON.stringify(buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex)));
+      void sendSnapshot(ws).catch(logSnapshotError);
     },
     onClose: (_evt, ws) => {
       clients.delete(ws);
@@ -31,12 +39,14 @@ app.get(
   })),
 );
 
-const broadcastSnapshot = (): void => {
-  const snapshot = JSON.stringify(buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex));
+const broadcastSnapshot = async (): Promise<void> => {
+  const snapshot = JSON.stringify(await buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex));
   for (const client of clients) client.send(snapshot);
 };
 
-watchFmHome(fmHome, broadcastSnapshot);
+watchFmHome(fmHome, () => {
+  void broadcastSnapshot().catch(logSnapshotError);
+});
 
 const port = loadPortFromEnv(process.env);
 
