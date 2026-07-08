@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+.DS_Store
+# secrets / local env - MUST stay out of this public repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# local fm home fixtures with real data
+/tmp-home/
+/.fm-home-local/
