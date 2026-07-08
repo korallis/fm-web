@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -101,6 +102,28 @@ describe("buildFleetSnapshot against the sanitized fixture home", () => {
 
       expect(snapshot.supervision.lock).toEqual({ pid: 999999, alive: false });
     } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("marks a live non-harness lock pid as stale", () => {
+    const child = spawn(process.execPath, ["-e", "setTimeout(() => undefined, 30_000)"], { stdio: "ignore" });
+    const childPid = child.pid;
+    if (childPid === undefined) throw new Error("failed to spawn child process");
+    child.unref();
+
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      mkdirSync(join(fmHome, "data"), { recursive: true });
+      writeFileSync(join(fmHome, "state", "task-a1.meta"), "kind=ship\n");
+      writeFileSync(join(fmHome, "state", ".lock"), `${childPid}\n`);
+
+      const snapshot = buildFleetSnapshot(fmHome);
+
+      expect(snapshot.supervision.lock).toEqual({ pid: childPid, alive: false });
+    } finally {
+      child.kill();
       rmSync(fmHome, { recursive: true, force: true });
     }
   });

@@ -24,7 +24,7 @@ import { latestStatus, parseStatusLog } from "./status.js";
 import { parseBacklog } from "./backlog.js";
 import { parseProjects } from "./projects.js";
 import { parseSecondmates } from "./secondmates.js";
-import { isPidAlive, parseLock } from "./lock.js";
+import { isHarnessPidAlive, parseLock } from "./lock.js";
 import { beaconAgeSeconds, isBeaconFresh } from "./beacon.js";
 import { FM_CAPTAIN_RE_DEFAULT, isCaptainRelevant } from "./captainClassifier.js";
 import { DEFAULT_TIMING } from "./timing.js";
@@ -73,7 +73,7 @@ function buildSupervisionHealth(fmHome: string, timing: TimingConstants, nowMs: 
   const lockContent = readIfExists(lockPath(fmHome));
   const parsedLock: LockInfo = lockContent === null ? { pid: null, alive: null } : parseLock(lockContent);
   const lock: LockInfo =
-    parsedLock.pid === null ? parsedLock : { pid: parsedLock.pid, alive: isPidAlive(parsedLock.pid) };
+    parsedLock.pid === null ? parsedLock : { pid: parsedLock.pid, alive: isHarnessPidAlive(parsedLock.pid) };
 
   const beaconStat = statIfExists(beaconPath(fmHome));
   const beaconLastBeatMs = beaconStat?.mtimeMs ?? null;

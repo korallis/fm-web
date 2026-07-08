@@ -43,6 +43,21 @@ describe("parseBacklog", () => {
     ]);
   });
 
+  it("parses comma-separated fields inside one parenthetical group", () => {
+    const { inFlight } = parseBacklog(`## In flight
+- **task-b2** - Active handoff task (repo: demo-repo, since 2026-06-03)
+`);
+
+    expect(inFlight).toEqual([
+      {
+        id: "task-b2",
+        description: "Active handoff task",
+        repo: "demo-repo",
+        since: "2026-06-03",
+      },
+    ]);
+  });
+
   it("parses the Queued lane with a blocked-by clause", () => {
     const { queued } = parseBacklog(FIXTURE);
     expect(queued).toEqual([
@@ -80,6 +95,38 @@ describe("parseBacklog", () => {
       dateLabel: "done",
       date: "2026-05-18",
     });
+  });
+
+  it("strips adjacent separators when extracting inline Done merge targets", () => {
+    const { done } = parseBacklog(`## Done
+- [x] task-u1 - Demo done via PR - https://github.com/example/demo-repo/pull/42 (merged 2026-05-20)
+- [x] task-r2 - Demo reported completion - data/task-r2/report.md (reported 2026-05-21)
+- [x] task-l3 - Demo local merge - local main (done 2026-05-22)
+`);
+
+    expect(done).toEqual([
+      {
+        id: "task-u1",
+        description: "Demo done via PR",
+        mergeTarget: "https://github.com/example/demo-repo/pull/42",
+        dateLabel: "merged",
+        date: "2026-05-20",
+      },
+      {
+        id: "task-r2",
+        description: "Demo reported completion",
+        mergeTarget: "data/task-r2/report.md",
+        dateLabel: "reported",
+        date: "2026-05-21",
+      },
+      {
+        id: "task-l3",
+        description: "Demo local merge",
+        mergeTarget: "local main",
+        dateLabel: "done",
+        date: "2026-05-22",
+      },
+    ]);
   });
 
   it("returns empty lanes for content with no matching sections", () => {

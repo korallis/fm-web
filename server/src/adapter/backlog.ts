@@ -10,15 +10,25 @@ interface ParenField {
  * Covers both spellings seen in the wild: `(repo: <name>)` / `(kind: <ship|scout>)` with a
  * colon, and `(since <date>)` / `(done|merged|reported <date>)` without one.
  */
+function parseParenFieldGroup(content: string): ParenField[] | null {
+  const fields: ParenField[] = [];
+  for (const segment of content.split(",")) {
+    const match = /^\s*([a-zA-Z][a-zA-Z-]*)(?::\s*|\s+)(.+?)\s*$/.exec(segment);
+    if (!match) return null;
+    const [, key, value] = match as unknown as [string, string, string];
+    fields.push({ key: key.toLowerCase(), value });
+  }
+  return fields;
+}
+
 function extractParenFields(text: string): { fields: ParenField[]; rest: string } {
   const fields: ParenField[] = [];
-  const rest = text.replace(
-    /\(([a-zA-Z][a-zA-Z-]*)(?::\s*|\s+)([^)]+)\)/g,
-    (_match, key: string, value: string) => {
-      fields.push({ key: key.toLowerCase(), value: value.trim() });
-      return " ";
-    },
-  );
+  const rest = text.replace(/\(([^()]*)\)/g, (match, content: string) => {
+    const groupFields = parseParenFieldGroup(content);
+    if (groupFields === null) return match;
+    fields.push(...groupFields);
+    return " ";
+  });
   return { fields, rest };
 }
 
@@ -41,18 +51,28 @@ function extractBlockedBy(text: string): { blockedBy: BlockedBy | undefined; res
   };
 }
 
+function removeTokenWithSeparator(text: string, index: number, length: number): string {
+  const before = text.slice(0, index);
+  const after = text.slice(index + length);
+  const separatorBefore = /\s+-\s*$/.exec(before);
+  if (separatorBefore) return before.slice(0, before.length - separatorBefore[0].length) + after;
+  const separatorAfter = /^\s+-\s*/.exec(after);
+  if (separatorAfter) return before + after.slice(separatorAfter[0].length);
+  return before + after;
+}
+
 function extractMergeTarget(text: string): { mergeTarget: string | undefined; rest: string } {
   const url = /(https?:\/\/\S+)/.exec(text);
   if (url) {
     const [whole] = url as unknown as [string];
-    return { mergeTarget: whole, rest: text.slice(0, url.index) + text.slice(url.index + whole.length) };
+    return { mergeTarget: whole, rest: removeTokenWithSeparator(text, url.index, whole.length) };
   }
   const report = /(data\/\S+\/report\.md)/.exec(text);
   if (report) {
     const [whole] = report as unknown as [string];
     return {
       mergeTarget: whole,
-      rest: text.slice(0, report.index) + text.slice(report.index + whole.length),
+      rest: removeTokenWithSeparator(text, report.index, whole.length),
     };
   }
   const localMain = /\blocal main\b/.exec(text);
@@ -60,7 +80,7 @@ function extractMergeTarget(text: string): { mergeTarget: string | undefined; re
     const [whole] = localMain as unknown as [string];
     return {
       mergeTarget: "local main",
-      rest: text.slice(0, localMain.index) + text.slice(localMain.index + whole.length),
+      rest: removeTokenWithSeparator(text, localMain.index, whole.length),
     };
   }
   return { mergeTarget: undefined, rest: text };

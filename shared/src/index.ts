@@ -51,7 +51,7 @@ export interface WakeEntry {
 export interface LockInfo {
   /** null when `state/.lock` does not exist (free). */
   pid: number | null;
-  /** null when no live PID is present to check. */
+  /** true only when the PID is a live firstmate harness holder. */
   alive: boolean | null;
 }
 
