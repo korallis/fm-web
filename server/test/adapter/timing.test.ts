@@ -29,4 +29,10 @@ describe("loadTimingFromEnv", () => {
   it("falls back to the default when an override is not a number", () => {
     expect(loadTimingFromEnv({ FM_POLL: "not-a-number" }).pollSeconds).toBe(DEFAULT_TIMING.pollSeconds);
   });
+
+  it("falls back to defaults when overrides are blank", () => {
+    const timing = loadTimingFromEnv({ FM_GUARD_GRACE: "", FM_STALE_ESCALATE_SECS: "   " });
+    expect(timing.guardGraceSeconds).toBe(DEFAULT_TIMING.guardGraceSeconds);
+    expect(timing.staleEscalateSeconds).toBe(DEFAULT_TIMING.staleEscalateSeconds);
+  });
 });

@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FleetSnapshot } from "@fm-web/shared";
 
 const FLEET_QUERY_KEY = ["fleet"] as const;
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
 
 async function fetchFleetSnapshot(): Promise<FleetSnapshot> {
   const res = await fetch("/api/fleet");
@@ -25,20 +27,46 @@ export function useFleetSnapshot(): FleetSnapshotState {
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const url = `${protocol}//${window.location.host}/ws`;
+    let ws: WebSocket | undefined;
+    let reconnectTimer: number | undefined;
+    let reconnectAttempt = 0;
+    let stopped = false;
 
-    ws.addEventListener("open", () => setWsConnected(true));
-    ws.addEventListener("close", () => setWsConnected(false));
-    ws.addEventListener("message", (event) => {
-      try {
-        const data = JSON.parse(event.data as string) as FleetSnapshot;
-        queryClient.setQueryData(FLEET_QUERY_KEY, data);
-      } catch {
-        // ignore malformed frames
-      }
-    });
+    const connect = () => {
+      const socket = new WebSocket(url);
+      ws = socket;
 
-    return () => ws.close();
+      socket.addEventListener("open", () => {
+        reconnectAttempt = 0;
+        setWsConnected(true);
+        void queryClient.invalidateQueries({ queryKey: FLEET_QUERY_KEY });
+      });
+      socket.addEventListener("close", () => {
+        if (stopped) return;
+        setWsConnected(false);
+        const delayMs = Math.min(INITIAL_RECONNECT_DELAY_MS * 2 ** reconnectAttempt, MAX_RECONNECT_DELAY_MS);
+        reconnectAttempt += 1;
+        reconnectTimer = window.setTimeout(connect, delayMs);
+      });
+      socket.addEventListener("error", () => socket.close());
+      socket.addEventListener("message", (event) => {
+        try {
+          const data = JSON.parse(event.data as string) as FleetSnapshot;
+          queryClient.setQueryData(FLEET_QUERY_KEY, data);
+        } catch {
+          // ignore malformed frames
+        }
+      });
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+      ws?.close();
+    };
   }, [queryClient]);
 
   return {

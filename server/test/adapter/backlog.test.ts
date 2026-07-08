@@ -27,6 +27,22 @@ describe("parseBacklog", () => {
     ]);
   });
 
+  it("parses bold In flight items", () => {
+    const { inFlight } = parseBacklog(`## In flight
+- **task-b2** - Active handoff task (repo: demo-repo) (kind: scout) (since 2026-06-03)
+`);
+
+    expect(inFlight).toEqual([
+      {
+        id: "task-b2",
+        description: "Active handoff task",
+        repo: "demo-repo",
+        kindTag: "scout",
+        since: "2026-06-03",
+      },
+    ]);
+  });
+
   it("parses the Queued lane with a blocked-by clause", () => {
     const { queued } = parseBacklog(FIXTURE);
     expect(queued).toEqual([

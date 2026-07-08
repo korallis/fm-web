@@ -66,7 +66,8 @@ function extractMergeTarget(text: string): { mergeTarget: string | undefined; re
   return { mergeTarget: undefined, rest: text };
 }
 
-const ITEM_RE = /^-\s*\[([ x])\]\s*(\S+)\s*-\s*(.+)$/;
+const CHECKBOX_ITEM_RE = /^-\s*\[([ x])\]\s*(\S+)\s*-\s*(.+)$/;
+const BOLD_ITEM_RE = /^-\s*\*\*(\S+?)\*\*\s*-\s*(.+)$/;
 const DATE_KEYS = ["done", "merged", "reported"] as const;
 
 function parseOpenItem(id: string, body: string): BacklogTask {
@@ -131,23 +132,29 @@ export function parseBacklog(content: string): Backlog {
     }
     if (section === null) continue;
 
-    const item = ITEM_RE.exec(line);
-    if (!item) continue;
-    const [, box, id, body] = item as unknown as [string, string, string, string];
-
-    if (box === "x") {
-      let continuation: string | undefined;
-      const next = lines[i + 1];
-      if (next !== undefined && isIndentedContinuation(next)) {
-        continuation = next.trim();
-        i++;
+    const checkboxItem = CHECKBOX_ITEM_RE.exec(line);
+    if (checkboxItem) {
+      const [, box, id, body] = checkboxItem as unknown as [string, string, string, string];
+      if (box === "x") {
+        let continuation: string | undefined;
+        const next = lines[i + 1];
+        if (next !== undefined && isIndentedContinuation(next)) {
+          continuation = next.trim();
+          i++;
+        }
+        backlog.done.push(parseDoneItem(id, body, continuation));
+      } else {
+        const parsed = parseOpenItem(id, body);
+        if (section === "inFlight") backlog.inFlight.push(parsed);
+        else if (section === "queued") backlog.queued.push(parsed);
       }
-      backlog.done.push(parseDoneItem(id, body, continuation));
-    } else {
-      const parsed = parseOpenItem(id, body);
-      if (section === "inFlight") backlog.inFlight.push(parsed);
-      else if (section === "queued") backlog.queued.push(parsed);
+      continue;
     }
+
+    const boldItem = BOLD_ITEM_RE.exec(line);
+    if (!boldItem || section !== "inFlight") continue;
+    const [, id, body] = boldItem as unknown as [string, string, string];
+    backlog.inFlight.push(parseOpenItem(id, body));
   }
 
   return backlog;

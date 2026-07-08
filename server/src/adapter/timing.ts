@@ -13,7 +13,9 @@ export const DEFAULT_TIMING: TimingConstants = {
 function envInt(env: Record<string, string | undefined>, key: string, fallback: number): number {
   const raw = env[key];
   if (raw === undefined) return fallback;
-  const value = Number(raw);
+  const trimmed = raw.trim();
+  if (trimmed === "") return fallback;
+  const value = Number(trimmed);
   return Number.isFinite(value) ? value : fallback;
 }
 
