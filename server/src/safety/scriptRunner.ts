@@ -40,11 +40,25 @@ function resolveScriptPath(fmHome: string, scriptName: string): ResolvedScript {
   return { fmHome: resolvedFmHome, scriptPath: resolved };
 }
 
+function buildScriptEnv(fmHome: string): Record<string, string | undefined> {
+  const source: Record<string, string | undefined> = { ...process.env, FM_HOME: fmHome };
+  const {
+    FM_ROOT: _fmRoot,
+    FM_ROOT_OVERRIDE: _fmRootOverride,
+    FM_STATE_OVERRIDE: _fmStateOverride,
+    FM_DATA_OVERRIDE: _fmDataOverride,
+    FM_PROJECTS_OVERRIDE: _fmProjectsOverride,
+    FM_CONFIG_OVERRIDE: _fmConfigOverride,
+    ...env
+  } = source;
+  return env;
+}
+
 function runSpawn(scriptPath: string, args: readonly string[], fmHome: string): Promise<ScriptResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(scriptPath, args, {
       cwd: fmHome,
-      env: { ...process.env, FM_HOME: fmHome },
+      env: buildScriptEnv(fmHome),
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

@@ -6,6 +6,7 @@ import { watchFmHome } from "./eventBus/watcher.js";
 import { captainRegexFromEnv } from "./adapter/captainClassifier.js";
 import { loadTimingFromEnv } from "./adapter/timing.js";
 import { loadPortFromEnv } from "./config.js";
+import { SnapshotBroadcaster } from "./snapshotBroadcaster.js";
 
 const fmHome = process.env["FM_HOME"];
 if (fmHome === undefined || fmHome === "") {
@@ -17,13 +18,16 @@ const timing = loadTimingFromEnv(process.env);
 const captainRegex = captainRegexFromEnv(process.env);
 const app = createApp(fmHome, { timing, captainRegex });
 const clients = new Set<WSContext>();
+const snapshotBroadcaster = new SnapshotBroadcaster(() =>
+  buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex),
+);
 
 const logSnapshotError = (error: unknown): void => {
   console.error("Failed to build fleet snapshot", error);
 };
 
 const sendSnapshot = async (client: WSContext): Promise<void> => {
-  client.send(JSON.stringify(await buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex)));
+  await snapshotBroadcaster.sendTo(client);
 };
 
 app.get(
@@ -40,8 +44,7 @@ app.get(
 );
 
 const broadcastSnapshot = async (): Promise<void> => {
-  const snapshot = JSON.stringify(await buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex));
-  for (const client of clients) client.send(snapshot);
+  await snapshotBroadcaster.broadcast(clients);
 };
 
 watchFmHome(fmHome, () => {
