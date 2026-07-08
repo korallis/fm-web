@@ -58,6 +58,33 @@ describe("parseBacklog", () => {
     ]);
   });
 
+  it("keeps unknown parentheticals in open item descriptions", () => {
+    const { inFlight } = parseBacklog(`## In flight
+- [ ] task-note - Demo task keeps context (needs captain) (repo: demo-repo, since 2026-06-03)
+- [ ] task-link - Demo task keeps [docs](https://example.com/readme) (kind: scout)
+- [ ] task-mixed - Demo task keeps mixed context (repo: demo-repo, ask captain)
+`);
+
+    expect(inFlight).toEqual([
+      {
+        id: "task-note",
+        description: "Demo task keeps context (needs captain)",
+        repo: "demo-repo",
+        since: "2026-06-03",
+      },
+      {
+        id: "task-link",
+        description: "Demo task keeps [docs](https://example.com/readme)",
+        kindTag: "scout",
+      },
+      {
+        id: "task-mixed",
+        description: "Demo task keeps mixed context (ask captain)",
+        repo: "demo-repo",
+      },
+    ]);
+  });
+
   it("parses the Queued lane with a blocked-by clause", () => {
     const { queued } = parseBacklog(FIXTURE);
     expect(queued).toEqual([

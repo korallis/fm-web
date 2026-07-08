@@ -5,29 +5,41 @@ interface ParenField {
   value: string;
 }
 
+const STRUCTURED_FIELD_KEYS = new Set(["repo", "kind", "since", "done", "merged", "reported"]);
+
 /**
  * Extracts parenthetical field groups, returning the remaining text with them removed.
  * Covers both spellings seen in the wild: `(repo: <name>)` / `(kind: <ship|scout>)` with a
  * colon, and `(since <date>)` / `(done|merged|reported <date>)` without one.
  */
-function parseParenFieldGroup(content: string): ParenField[] | null {
-  const fields: ParenField[] = [];
-  for (const segment of content.split(",")) {
-    const match = /^\s*([a-zA-Z][a-zA-Z-]*)(?::\s*|\s+)(.+?)\s*$/.exec(segment);
-    if (!match) return null;
-    const [, key, value] = match as unknown as [string, string, string];
-    fields.push({ key: key.toLowerCase(), value });
-  }
-  return fields;
+function parseParenField(segment: string): ParenField | null {
+  const match = /^\s*([a-zA-Z][a-zA-Z-]*)(?::\s*|\s+)(.+?)\s*$/.exec(segment);
+  if (!match) return null;
+  const [, key, value] = match as unknown as [string, string, string];
+  const normalizedKey = key.toLowerCase();
+  if (!STRUCTURED_FIELD_KEYS.has(normalizedKey)) return null;
+  return { key: normalizedKey, value };
 }
 
 function extractParenFields(text: string): { fields: ParenField[]; rest: string } {
   const fields: ParenField[] = [];
   const rest = text.replace(/\(([^()]*)\)/g, (match, content: string) => {
-    const groupFields = parseParenFieldGroup(content);
-    if (groupFields === null) return match;
+    const retainedSegments: string[] = [];
+    const groupFields: ParenField[] = [];
+
+    for (const segment of content.split(",")) {
+      const field = parseParenField(segment);
+      if (field === null) {
+        const retained = segment.trim();
+        if (retained !== "") retainedSegments.push(retained);
+      } else {
+        groupFields.push(field);
+      }
+    }
+
+    if (groupFields.length === 0) return match;
     fields.push(...groupFields);
-    return " ";
+    return retainedSegments.length === 0 ? " " : ` (${retainedSegments.join(", ")}) `;
   });
   return { fields, rest };
 }

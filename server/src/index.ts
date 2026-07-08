@@ -5,6 +5,7 @@ import { buildFleetSnapshot } from "./adapter/fleetState.js";
 import { watchFmHome } from "./eventBus/watcher.js";
 import { captainRegexFromEnv } from "./adapter/captainClassifier.js";
 import { loadTimingFromEnv } from "./adapter/timing.js";
+import { loadPortFromEnv } from "./config.js";
 
 const fmHome = process.env["FM_HOME"];
 if (fmHome === undefined || fmHome === "") {
@@ -37,7 +38,7 @@ const broadcastSnapshot = (): void => {
 
 watchFmHome(fmHome, broadcastSnapshot);
 
-const port = Number(process.env["PORT"] ?? 4870);
+const port = loadPortFromEnv(process.env);
 
 Bun.serve({
   hostname: "127.0.0.1",
