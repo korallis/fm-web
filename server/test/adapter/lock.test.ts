@@ -3,11 +3,11 @@ import { isPidAlive, parseLock } from "../../src/adapter/lock.js";
 
 describe("parseLock", () => {
   it("parses a bare pid", () => {
-    expect(parseLock("15356\n")).toEqual({ pid: 15356 });
+    expect(parseLock("15356\n")).toEqual({ pid: 15356, alive: null });
   });
 
   it("returns null pid for malformed content", () => {
-    expect(parseLock("not-a-pid\n")).toEqual({ pid: null });
+    expect(parseLock("not-a-pid\n")).toEqual({ pid: null, alive: null });
   });
 });
 

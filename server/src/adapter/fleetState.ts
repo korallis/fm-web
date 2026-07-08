@@ -1,9 +1,10 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, type Stats } from "node:fs";
 import type {
   Backlog,
   BacklogTask,
   FleetSnapshot,
   FleetTask,
+  LockInfo,
   SupervisionHealth,
   TimingConstants,
 } from "@fm-web/shared";
@@ -23,22 +24,45 @@ import { latestStatus, parseStatusLog } from "./status.js";
 import { parseBacklog } from "./backlog.js";
 import { parseProjects } from "./projects.js";
 import { parseSecondmates } from "./secondmates.js";
-import { parseLock } from "./lock.js";
+import { isPidAlive, parseLock } from "./lock.js";
 import { beaconAgeSeconds, isBeaconFresh } from "./beacon.js";
-import { isCaptainRelevant } from "./captainClassifier.js";
+import { FM_CAPTAIN_RE_DEFAULT, isCaptainRelevant } from "./captainClassifier.js";
 import { DEFAULT_TIMING } from "./timing.js";
 
+function isMissingPathError(error: unknown): boolean {
+  if (error === null || typeof error !== "object" || !("code" in error)) return false;
+  const code = error.code;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
 function readIfExists(path: string): string | null {
-  return existsSync(path) ? readFileSync(path, "utf8") : null;
+  try {
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    if (isMissingPathError(error)) return null;
+    throw error;
+  }
+}
+
+function statIfExists(path: string): Stats | null {
+  try {
+    return statSync(path);
+  } catch (error) {
+    if (isMissingPathError(error)) return null;
+    throw error;
+  }
 }
 
 /** Task ids are recovered from `state/*.meta` filenames — the id-to-file mapping is a firstmate convention. */
 function listTaskIds(fmHome: string): string[] {
-  const dir = stateDir(fmHome);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => name.endsWith(".meta"))
-    .map((name) => name.slice(0, -".meta".length));
+  try {
+    return readdirSync(stateDir(fmHome))
+      .filter((name) => name.endsWith(".meta"))
+      .map((name) => name.slice(0, -".meta".length));
+  } catch (error) {
+    if (isMissingPathError(error)) return [];
+    throw error;
+  }
 }
 
 function findBacklogRef(id: string, backlog: Backlog): BacklogTask | null {
@@ -47,11 +71,12 @@ function findBacklogRef(id: string, backlog: Backlog): BacklogTask | null {
 
 function buildSupervisionHealth(fmHome: string, timing: TimingConstants, nowMs: number): SupervisionHealth {
   const lockContent = readIfExists(lockPath(fmHome));
-  const lock = lockContent === null ? { pid: null } : parseLock(lockContent);
+  const parsedLock: LockInfo = lockContent === null ? { pid: null, alive: null } : parseLock(lockContent);
+  const lock: LockInfo =
+    parsedLock.pid === null ? parsedLock : { pid: parsedLock.pid, alive: isPidAlive(parsedLock.pid) };
 
-  const beacon = beaconPath(fmHome);
-  let beaconLastBeatMs: number | null = null;
-  if (existsSync(beacon)) beaconLastBeatMs = statSync(beacon).mtimeMs;
+  const beaconStat = statIfExists(beaconPath(fmHome));
+  const beaconLastBeatMs = beaconStat?.mtimeMs ?? null;
   const ageSeconds = beaconLastBeatMs === null ? null : beaconAgeSeconds(beaconLastBeatMs, nowMs);
 
   return {
@@ -69,6 +94,7 @@ export function buildFleetSnapshot(
   fmHome: string,
   nowMs: number = Date.now(),
   timing: TimingConstants = DEFAULT_TIMING,
+  captainRegex: RegExp = FM_CAPTAIN_RE_DEFAULT,
 ): FleetSnapshot {
   const backlogContent = readIfExists(backlogPath(fmHome));
   const backlog: Backlog =
@@ -80,19 +106,22 @@ export function buildFleetSnapshot(
   const secondmatesContent = readIfExists(secondmatesPath(fmHome));
   const secondmates = secondmatesContent === null ? [] : parseSecondmates(secondmatesContent);
 
-  const tasks: FleetTask[] = listTaskIds(fmHome).map((id) => {
-    const meta = parseMeta(readFileSync(metaPath(fmHome, id), "utf8"));
+  const tasks: FleetTask[] = [];
+  for (const id of listTaskIds(fmHome)) {
+    const metaContent = readIfExists(metaPath(fmHome, id));
+    if (metaContent === null) continue;
+    const meta = parseMeta(metaContent);
     const statusContent = readIfExists(statusPath(fmHome, id));
     const status = statusContent === null ? null : latestStatus(parseStatusLog(statusContent));
-    return {
+    tasks.push({
       id,
       meta,
       latestStatus: status,
-      captainRelevant: status !== null && isCaptainRelevant(status.raw),
+      captainRelevant: status !== null && isCaptainRelevant(status.raw, captainRegex),
       backlogRef: findBacklogRef(id, backlog),
       worktreePresent: meta.worktree !== undefined && existsSync(meta.worktree),
-    };
-  });
+    });
+  }
 
   return {
     generatedAtMs: nowMs,

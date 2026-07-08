@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runMutatingScript, runReadOnlyScript, ScriptGuardError } from "../../src/safety/scriptRunner.js";
 import { MUTATING_SCRIPTS, NEVER_RUN_SCRIPTS, READ_ONLY_SCRIPTS } from "../../src/safety/allowlist.js";
@@ -12,6 +12,14 @@ describe("runReadOnlyScript", () => {
     const result = await runReadOnlyScript(FIXTURE_HOME, "fm-peek.sh", ["some-target"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("stub peek output for some-target");
+  });
+
+  it("executes an allowlisted script when FM_HOME is relative", async () => {
+    const result = await runReadOnlyScript(relative(process.cwd(), FIXTURE_HOME), "fm-peek.sh", [
+      "relative-home",
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("stub peek output for relative-home");
   });
 
   it("allows fm-lock.sh with exactly a single 'status' argument", async () => {

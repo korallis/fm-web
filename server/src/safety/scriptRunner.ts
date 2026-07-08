@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, resolve } from "node:path";
 import { binDir } from "../adapter/paths.js";
 import { MUTATING_SCRIPTS, NEVER_RUN_SCRIPTS, READ_ONLY_SCRIPTS } from "./allowlist.js";
 import type { MutatingScript, ReadOnlyScript } from "./allowlist.js";
@@ -22,15 +22,22 @@ function assertLockArgsSafe(scriptName: string, args: readonly string[]): void {
   }
 }
 
-function resolveScriptPath(fmHome: string, scriptName: string): string {
+interface ResolvedScript {
+  fmHome: string;
+  scriptPath: string;
+}
+
+function resolveScriptPath(fmHome: string, scriptName: string): ResolvedScript {
   if (scriptName.includes("/") || scriptName.includes("\\") || scriptName.includes("..")) {
     throw new ScriptGuardError(`refusing script name with path separators: ${scriptName}`);
   }
-  const resolved = join(binDir(fmHome), scriptName);
-  if (dirname(resolved) !== binDir(fmHome)) {
+  const resolvedFmHome = resolve(fmHome);
+  const resolvedBinDir = binDir(resolvedFmHome);
+  const resolved = resolve(resolvedBinDir, scriptName);
+  if (dirname(resolved) !== resolvedBinDir) {
     throw new ScriptGuardError(`resolved script path escapes bin/: ${resolved}`);
   }
-  return resolved;
+  return { fmHome: resolvedFmHome, scriptPath: resolved };
 }
 
 function runSpawn(scriptPath: string, args: readonly string[], fmHome: string): Promise<ScriptResult> {
@@ -65,8 +72,8 @@ export async function runReadOnlyScript(
     throw new ScriptGuardError(`${scriptName} is not on the read-only allowlist`);
   }
   assertLockArgsSafe(scriptName, args);
-  const scriptPath = resolveScriptPath(fmHome, scriptName);
-  return runSpawn(scriptPath, args, fmHome);
+  const resolved = resolveScriptPath(fmHome, scriptName);
+  return runSpawn(resolved.scriptPath, args, resolved.fmHome);
 }
 
 /**

@@ -3,7 +3,7 @@ import type { LockInfo } from "@fm-web/shared";
 /** Parse `state/.lock` — a bare harness PID, one line, no other fields. */
 export function parseLock(content: string): LockInfo {
   const pid = Number(content.trim());
-  return { pid: Number.isInteger(pid) && pid > 0 ? pid : null };
+  return { pid: Number.isInteger(pid) && pid > 0 ? pid : null, alive: null };
 }
 
 /** True if a process with this pid is alive (signal 0, no actual kill). */

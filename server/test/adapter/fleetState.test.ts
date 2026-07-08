@@ -1,8 +1,10 @@
-import { statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { buildFleetSnapshot } from "../../src/adapter/fleetState.js";
+import { DEFAULT_TIMING } from "../../src/adapter/timing.js";
 
 const FIXTURE_HOME = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "fm-home");
 const BEACON_MTIME_MS = statSync(join(FIXTURE_HOME, "state", ".last-watcher-beat")).mtimeMs;
@@ -49,6 +51,7 @@ describe("buildFleetSnapshot against the sanitized fixture home", () => {
   it("builds supervision health from the fixture lock/beacon/afk files", () => {
     const snapshot = buildFleetSnapshot(FIXTURE_HOME);
     expect(snapshot.supervision.lock.pid).toBe(15356);
+    expect(typeof snapshot.supervision.lock.alive).toBe("boolean");
     expect(snapshot.supervision.afk).toBe(false);
     expect(snapshot.supervision.beaconLastBeatMs).not.toBeNull();
     expect(snapshot.supervision.timing).toEqual({
@@ -69,5 +72,49 @@ describe("buildFleetSnapshot against the sanitized fixture home", () => {
   it("marks the beacon stale once older than the guard grace window", () => {
     const snapshot = buildFleetSnapshot(FIXTURE_HOME, BEACON_MTIME_MS + 400_000);
     expect(snapshot.supervision.beaconFresh).toBe(false);
+  });
+
+  it("skips a task whose meta entry vanishes before it is read", () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      mkdirSync(join(fmHome, "data"), { recursive: true });
+      symlinkSync("missing-target.meta", join(fmHome, "state", "vanished.meta"));
+
+      const snapshot = buildFleetSnapshot(fmHome);
+
+      expect(snapshot.tasks).toEqual([]);
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("marks a dead lock pid as stale", () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      mkdirSync(join(fmHome, "data"), { recursive: true });
+      writeFileSync(join(fmHome, "state", "task-a1.meta"), "kind=ship\n");
+      writeFileSync(join(fmHome, "state", ".lock"), "999999\n");
+
+      const snapshot = buildFleetSnapshot(fmHome);
+
+      expect(snapshot.supervision.lock).toEqual({ pid: 999999, alive: false });
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("applies caller-supplied timing and captain relevance configuration", () => {
+    const snapshot = buildFleetSnapshot(
+      FIXTURE_HOME,
+      BEACON_MTIME_MS + 10_000,
+      { ...DEFAULT_TIMING, guardGraceSeconds: 7 },
+      /only-this-word/i,
+    );
+
+    expect(snapshot.supervision.timing.guardGraceSeconds).toBe(7);
+    expect(snapshot.supervision.beaconFresh).toBe(false);
+    expect(snapshot.tasks.find((t) => t.id === "task-a1")?.captainRelevant).toBe(false);
   });
 });
