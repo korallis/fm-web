@@ -188,6 +188,69 @@ describe("buildFleetSnapshot against the sanitized fixture home", () => {
     }
   });
 
+  it("wires a parked run-step crew state into the decisions inbox as a no-mistakes gate", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "bin"), { recursive: true });
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      mkdirSync(join(fmHome, "data"), { recursive: true });
+      writeFileSync(join(fmHome, "state", "task-a1.meta"), "kind=ship\n");
+      writeFileSync(
+        join(fmHome, "bin", "fm-crew-state.sh"),
+        "#!/bin/sh\nprintf 'state: parked \\302\\267 source: run-step \\302\\267 parked at review: 2 finding(s) (ask-user: captain decision)\\n'\n",
+      );
+      chmodSync(join(fmHome, "bin", "fm-crew-state.sh"), 0o755);
+
+      const snapshot = await buildFleetSnapshot(fmHome);
+
+      expect(snapshot.decisions).toEqual([
+        {
+          taskId: "task-a1",
+          category: "parked-gate",
+          detail: "parked at review: 2 finding(s) (ask-user: captain decision)",
+          source: "run-step",
+        },
+      ]);
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the wake-queue and watch-triage fixture files into the snapshot", async () => {
+    const snapshot = await buildFleetSnapshot(FIXTURE_HOME);
+    expect(snapshot.wakeQueue).toEqual([
+      { epoch: 1783516268, seq: 271, kind: "signal", key: "task-a1_status", payload: "status updated" },
+      { epoch: 1783516300, seq: 272, kind: "heartbeat", key: "fleet", payload: "periodic heartbeat scan" },
+    ]);
+    expect(snapshot.watchTriage).toEqual([
+      {
+        timestampMs: Date.parse("2026-06-01T09:00:00+0000"),
+        message: "absorbed stale wake for task-a1 (window busy)",
+        raw: "[2026-06-01T09:00:00+0000] absorbed stale wake for task-a1 (window busy)",
+      },
+      {
+        timestampMs: Date.parse("2026-06-01T09:05:00+0000"),
+        message: "heartbeat scan clean",
+        raw: "[2026-06-01T09:05:00+0000] heartbeat scan clean",
+      },
+    ]);
+  });
+
+  it("returns empty wake-queue/watch-triage arrays when the files are absent", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      mkdirSync(join(fmHome, "data"), { recursive: true });
+
+      const snapshot = await buildFleetSnapshot(fmHome);
+
+      expect(snapshot.wakeQueue).toEqual([]);
+      expect(snapshot.watchTriage).toEqual([]);
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
   it("applies caller-supplied timing and captain relevance configuration", async () => {
     const snapshot = await buildFleetSnapshot(
       FIXTURE_HOME,

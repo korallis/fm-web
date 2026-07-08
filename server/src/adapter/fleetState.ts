@@ -19,6 +19,8 @@ import {
   secondmatesPath,
   statusPath,
   stateDir,
+  wakeQueuePath,
+  watchTriagePath,
 } from "./paths.js";
 import { parseMeta } from "./meta.js";
 import { latestStatus, parseStatusLog } from "./status.js";
@@ -30,6 +32,9 @@ import { beaconAgeSeconds, isBeaconFresh } from "./beacon.js";
 import { FM_CAPTAIN_RE_DEFAULT, isCaptainRelevant } from "./captainClassifier.js";
 import { DEFAULT_TIMING } from "./timing.js";
 import { parseCrewStateOutput } from "./crewState.js";
+import { parseWakeQueue } from "./wakeQueue.js";
+import { parseWatchTriageLog } from "./watchTriage.js";
+import { buildDecisionsInbox } from "./decisions.js";
 import { runReadOnlyScript } from "../safety/scriptRunner.js";
 
 function isMissingPathError(error: unknown): boolean {
@@ -152,6 +157,12 @@ export async function buildFleetSnapshot(
   );
   const tasks = taskResults.filter((task): task is FleetTask => task !== null);
 
+  const wakeQueueContent = readIfExists(wakeQueuePath(fmHome));
+  const wakeQueue = wakeQueueContent === null ? [] : parseWakeQueue(wakeQueueContent);
+
+  const watchTriageContent = readIfExists(watchTriagePath(fmHome));
+  const watchTriage = watchTriageContent === null ? [] : parseWatchTriageLog(watchTriageContent);
+
   return {
     generatedAtMs: nowMs,
     fmHome,
@@ -160,5 +171,8 @@ export async function buildFleetSnapshot(
     projects,
     secondmates,
     supervision: buildSupervisionHealth(fmHome, timing, nowMs),
+    decisions: buildDecisionsInbox(tasks),
+    wakeQueue,
+    watchTriage,
   };
 }

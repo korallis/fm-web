@@ -46,6 +46,9 @@ function snapshot(generatedAtMs: number): FleetSnapshot {
       afk: false,
       timing: DEFAULT_TIMING,
     },
+    decisions: [],
+    wakeQueue: [],
+    watchTriage: [],
   };
 }
 
