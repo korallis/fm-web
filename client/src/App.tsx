@@ -5,12 +5,14 @@ import { SupervisionHealthStrip } from "./components/SupervisionHealthStrip";
 import { ProjectModeChips } from "./components/ProjectModeChips";
 import { DecisionsInbox } from "./components/DecisionsInbox";
 import { WakeFeed } from "./components/WakeFeed";
+import { TaskDetailPage } from "./components/TaskDetailPage";
+import { useTaskRoute } from "./routing/useTaskRoute";
 
-export function App() {
+function Bridge({ onOpenTask }: { onOpenTask: (id: string) => void }) {
   const { snapshot, isLoading, error, wsConnected } = useFleetSnapshot();
 
   return (
-    <div className="min-h-screen bg-factory-bg px-4 py-6 text-factory-text">
+    <>
       <header className="mb-6 flex items-center justify-between border-b border-factory-border pb-3">
         <h1 className="font-mono text-lg font-semibold text-factory-accent">FM Deck — Bridge</h1>
         <span className={`font-mono text-xs ${wsConnected ? "text-emerald-400" : "text-factory-dim"}`}>
@@ -39,7 +41,7 @@ export function App() {
 
           <section>
             <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">Fleet</h2>
-            <FleetGrid tasks={snapshot.tasks} />
+            <FleetGrid tasks={snapshot.tasks} onOpenTask={onOpenTask} />
           </section>
 
           <section>
@@ -57,6 +59,20 @@ export function App() {
             <ProjectModeChips projects={snapshot.projects} />
           </section>
         </div>
+      )}
+    </>
+  );
+}
+
+export function App() {
+  const { taskId, openTask, closeTask } = useTaskRoute();
+
+  return (
+    <div className="min-h-screen bg-factory-bg px-4 py-6 text-factory-text">
+      {taskId !== null ? (
+        <TaskDetailPage taskId={taskId} onBack={closeTask} />
+      ) : (
+        <Bridge onOpenTask={openTask} />
       )}
     </div>
   );

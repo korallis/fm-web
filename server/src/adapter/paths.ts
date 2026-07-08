@@ -21,6 +21,11 @@ export function statusPath(fmHome: string, taskId: string): string {
   return join(stateDir(fmHome), `${taskId}.status`);
 }
 
+/** `fm-pr-check.sh`'s merge-poll script — its mere existence means the watcher is polling for merge/close. */
+export function checkScriptPath(fmHome: string, taskId: string): string {
+  return join(stateDir(fmHome), `${taskId}.check.sh`);
+}
+
 export function wakeQueuePath(fmHome: string): string {
   return join(stateDir(fmHome), ".wake-queue");
 }
