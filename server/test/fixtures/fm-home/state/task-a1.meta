@@ -1,0 +1,15 @@
+window=default:w1:p3
+worktree=/tmp/fixture-home/projects/demo-repo
+project=/tmp/fixture-home/projects/demo-repo
+harness=claude
+kind=ship
+mode=no-mistakes
+yolo=off
+tasktmp=/tmp/fm-task-a1
+model=claude-sonnet-5
+effort=default
+backend=herdr
+herdr_session=default
+herdr_workspace_id=w1
+herdr_tab_id=w1:t3
+herdr_pane_id=w1:p2
