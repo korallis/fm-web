@@ -8,15 +8,15 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 ## Build/test
 
-`bun install`, `bun run typecheck` / `lint` / `format` / `test` / `build` at the repo root fan out to all three workspaces. `bun` is not on PATH by default in some shells here — use `$HOME/.bun/bin/bun` or `export PATH="$HOME/.bun/bin:$PATH"` first.
+`bun install`, `bun run typecheck` / `lint` / `format` / `test` / `build` at the repo root fan out to all three workspaces. `bun` is not on PATH by default in some shells here - use `$HOME/.bun/bin/bun` or `export PATH="$HOME/.bun/bin:$PATH"` first.
 
 ## FM adapter + safety module
 
-`server/src/adapter/*` parses every on-disk firstmate format (meta/status/wake-queue/lock/beacon/backlog/projects/secondmates/crew-state grammar) read-only; `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate — read the safety contract in the plan above before touching either. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` — NEVER point tests or dev at a live firstmate home.
+`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar) read-only; brief/report helpers are path-only for now. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
 
 ## Hono + Bun websocket gotcha
 
-`hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` — dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`.
+`hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`.
 
 ## Maintaining this file
 
