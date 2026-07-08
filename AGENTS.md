@@ -18,7 +18,11 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 ## Hono + Bun websocket gotcha
 
-`hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`.
+`hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`. Applies to both `/ws` and `/ws/session`.
+
+## Command deck (app-owned tmux session)
+
+`server/src/tmux/*` is a from-scratch TS port of firstmate's `bin/fm-tmux-lib.sh` verified-submit + composer-idle detection (`composerState.ts`, `submit.ts`), plus a session manager (`sessionManager.ts`) and pane streamer (`paneStream.ts`). It talks to a tmux session THIS app creates and owns (deterministic name from `fmHome`, never a firstmate-tracked crewmate) via generic `send-keys`/`capture-pane`/`pipe-pane` - it does not call any `bin/fm-*.sh` script, so it sits outside the safety module's allowlist entirely; `server/src/composer/queue.ts` is the one busy-aware serialized send path everything funnels through. Read-only mode compares `state/.lock`'s pid against the app-owned session's own pane-process ancestry (`isLockHeldByOwnSession`) - never acquires the lock itself. Two sharp edges found only by driving this in a real browser, not by unit tests: (1) `capture-pane -e` always returns the tmux pane's full configured height including trailing blank rows, so the xterm resync snapshot must trim them (`paneSnapshotToXterm`) or real content scrolls off-screen in a shorter browser viewport; (2) xterm.js needs a true fixed-width font for its cell metrics - a variable-width web font (e.g. Geist Mono Variable) throws off glyph spacing, so the terminal pins `ui-monospace, Menlo, Consolas, monospace` instead of the app's variable mono font. Integration tests spin up real tmux sessions (a fake Node composer harness fixture stands in for a real agent harness) - always killed in `afterEach`.
 
 ## TanStack Query networkMode gotcha
 

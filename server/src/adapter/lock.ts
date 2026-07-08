@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import type { LockInfo } from "@fm-web/shared";
+import { lockPath } from "./paths.js";
 
 const HARNESS_RE = /claude|codex|opencode|grok|^pi$/;
 
@@ -34,4 +36,16 @@ export function isHarnessPidAlive(pid: number): boolean {
   if (comm === null) return false;
   const args = psValue(pid, "args") ?? "";
   return HARNESS_RE.test(basename(comm)) || HARNESS_RE.test(args);
+}
+
+/** Reads `state/.lock` (if present) and resolves liveness — the one place both the fleet snapshot and the command deck's read-only check should read the lock from. */
+export function readLockInfo(fmHome: string): LockInfo {
+  let content: string;
+  try {
+    content = readFileSync(lockPath(fmHome), "utf8");
+  } catch {
+    return { pid: null, alive: null };
+  }
+  const parsed = parseLock(content);
+  return parsed.pid === null ? parsed : { pid: parsed.pid, alive: isHarnessPidAlive(parsed.pid) };
 }

@@ -231,3 +231,48 @@ export interface TaskDetail {
    */
   gateStatusRaw: string | null;
 }
+
+// ---- Phase 2: command deck (app-owned first-mate session) ----
+
+/** A runtime-discovered skill (`.claude/skills/<id>/SKILL.md` or `.agents/skills/<id>/SKILL.md`). */
+export interface SkillEntry {
+  id: string;
+  name: string;
+  description: string;
+  /** Only skills with `user-invocable: true` in frontmatter are surfaced as quick actions. */
+  userInvocable: boolean;
+  source: ".claude" | ".agents";
+}
+
+export type ComposerQueueStatus = "queued" | "sending" | "sent" | "failed";
+
+export interface ComposerQueueEntry {
+  id: string;
+  text: string;
+  enqueuedAtMs: number;
+  status: ComposerQueueStatus;
+  /** Set once resolved: the verified-submit verdict, or an error message. */
+  detail?: string;
+}
+
+export interface ComposerState {
+  /** True when the app-owned session's pane shows a busy footer (mid-turn). */
+  busy: boolean;
+  /** True when a live firstmate session other than our own owned one holds `state/.lock`. */
+  readOnly: boolean;
+  lock: LockInfo;
+  queue: ComposerQueueEntry[];
+  sessionReady: boolean;
+}
+
+export interface ComposerSendResult {
+  accepted: boolean;
+  entryId?: string;
+  error?: string;
+}
+
+/** Messages pushed over `/ws/session` for the response terminal + composer state. */
+export type SessionWsMessage =
+  | { type: "snapshot"; text: string }
+  | { type: "chunk"; text: string }
+  | { type: "composerState"; state: ComposerState };
