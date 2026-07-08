@@ -1,0 +1,10 @@
+window=fm-task-b2
+worktree=/tmp/fixture-home/projects/demo-repo-scout
+project=/tmp/fixture-home/projects/demo-repo
+harness=pi
+kind=scout
+mode=no-mistakes
+yolo=off
+tasktmp=/tmp/fm-task-b2
+model=cursor/opus-4.8@1m
+effort=high

@@ -1,0 +1,3 @@
+- demo-repo [no-mistakes] - Demo repository used for fixture testing (added 2026-06-01)
+- demo-direct [direct-PR +yolo] - Demo project using direct-PR with yolo mode (added 2026-06-02)
+- demo-local [local-only] - Demo project using local-only mode (added 2026-06-03)

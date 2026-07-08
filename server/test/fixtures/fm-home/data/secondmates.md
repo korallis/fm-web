@@ -1,0 +1,1 @@
+- demo-secondmate - Demo secondmate charter summary (home: /tmp/fixture-home-secondmate; scope: demo domain supervision; projects: demo-repo, demo-other; added 2026-06-05)
