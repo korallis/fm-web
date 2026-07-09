@@ -204,7 +204,7 @@ export interface NoMistakesStatusOptions extends ScriptRunLimits {
 }
 
 /**
- * Read-only `no-mistakes axi status` run inside a crew's worktree — the exact same non-mutating
+ * Read-only `no-mistakes axi status` run inside a crew's worktree - the exact same non-mutating
  * query `fm-crew-state.sh` already shells out to (`nm_run axi status`) for every fleet task on
  * every poll, just with the raw TOON kept instead of flattened into one summary line. Never
  * writes anything; `axi status`/`axi logs` are informational reads, not part of the firstmate
@@ -233,8 +233,8 @@ export async function readNoMistakesGateStatus(
 }
 
 /**
- * The current read-only deck refuses every mutating script categorically. The allowlist exists so
- * future mutating surfaces can wire calls against it later, but nothing calls through today.
+ * Mutating scripts are refused categorically. The allowlist exists so a future advanced drawer can
+ * be wired by changing one deliberate gate instead of searching call sites.
  */
 export function runMutatingScript(
   _fmHome: string,

@@ -1,8 +1,17 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import type { LockInfo } from "@fm-web/shared";
+import { lockPath } from "./paths.js";
 
 const HARNESS_RE = /claude|codex|opencode|grok|^pi$/;
+export const UNKNOWN_LOCK_PID = -1;
+
+function isMissingPathError(error: unknown): boolean {
+  if (error === null || typeof error !== "object" || !("code" in error)) return false;
+  const code = error.code;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
 
 /** Parse `state/.lock` - a bare harness PID, one line, no other fields. */
 export function parseLock(content: string): LockInfo {
@@ -34,4 +43,19 @@ export function isHarnessPidAlive(pid: number): boolean {
   if (comm === null) return false;
   const args = psValue(pid, "args") ?? "";
   return HARNESS_RE.test(basename(comm)) || HARNESS_RE.test(args);
+}
+
+/** Reads `state/.lock` (if present), resolves liveness, and fails closed on unreadable/malformed existing locks. */
+export function readLockInfo(fmHome: string): LockInfo {
+  let content: string;
+  try {
+    content = readFileSync(lockPath(fmHome), "utf8");
+  } catch (error) {
+    if (isMissingPathError(error)) return { pid: null, alive: null };
+    return { pid: UNKNOWN_LOCK_PID, alive: true };
+  }
+  const parsed = parseLock(content);
+  return parsed.pid === null
+    ? { pid: UNKNOWN_LOCK_PID, alive: true }
+    : { pid: parsed.pid, alive: isHarnessPidAlive(parsed.pid) };
 }

@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FleetSnapshot } from "@fm-web/shared";
 import { taskDetailQueryKey } from "./useTaskDetail";
+import { connectWithBackoff } from "./wsReconnect";
 
 const FLEET_QUERY_KEY = ["fleet"] as const;
-const INITIAL_RECONNECT_DELAY_MS = 1000;
-const MAX_RECONNECT_DELAY_MS = 30000;
 
 async function fetchFleetSnapshot(): Promise<FleetSnapshot> {
   const res = await fetch("/api/fleet");
@@ -46,61 +45,30 @@ export function useFleetSnapshot(activeTaskId: string | null = null): FleetSnaps
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/ws`;
-    let ws: WebSocket | undefined;
-    let reconnectTimer: number | undefined;
-    let reconnectAttempt = 0;
-    let stopped = false;
 
-    const invalidateActiveTask = () => {
+    const invalidateActiveTask = (): void => {
       const id = activeTaskIdRef.current;
       if (id !== null) void queryClient.invalidateQueries({ queryKey: taskDetailQueryKey(id) });
     };
 
-    const connect = () => {
-      const socket = new WebSocket(url);
-      ws = socket;
-
-      socket.addEventListener("open", () => {
-        if (stopped) {
-          socket.close();
-          return;
-        }
-        reconnectAttempt = 0;
-        setWsConnected(true);
+    return connectWithBackoff(url, {
+      onStatusChange: setWsConnected,
+      onOpen: () => {
         void queryClient.invalidateQueries({ queryKey: FLEET_QUERY_KEY });
         invalidateActiveTask();
-      });
-      socket.addEventListener("close", () => {
-        if (stopped) return;
-        setWsConnected(false);
-        const delayMs = Math.min(INITIAL_RECONNECT_DELAY_MS * 2 ** reconnectAttempt, MAX_RECONNECT_DELAY_MS);
-        reconnectAttempt += 1;
-        reconnectTimer = window.setTimeout(connect, delayMs);
-      });
-      socket.addEventListener("error", () => {
-        if (socket.readyState === WebSocket.OPEN) socket.close();
-      });
-      socket.addEventListener("message", (event) => {
-        if (stopped) return;
+      },
+      onMessage: (data) => {
         try {
-          const data = JSON.parse(event.data as string) as FleetSnapshot;
+          const parsed = JSON.parse(data) as FleetSnapshot;
           queryClient.setQueryData<FleetSnapshot>(FLEET_QUERY_KEY, (current) =>
-            preferNewestSnapshot(current, data),
+            preferNewestSnapshot(current, parsed),
           );
           invalidateActiveTask();
         } catch {
           // ignore malformed frames
         }
-      });
-    };
-
-    connect();
-
-    return () => {
-      stopped = true;
-      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
-      if (ws?.readyState === WebSocket.OPEN) ws.close();
-    };
+      },
+    });
   }, [queryClient]);
 
   return {

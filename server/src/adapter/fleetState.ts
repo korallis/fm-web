@@ -5,7 +5,6 @@ import type {
   CrewStateOutput,
   FleetSnapshot,
   FleetTask,
-  LockInfo,
   SupervisionHealth,
   TimingConstants,
 } from "@fm-web/shared";
@@ -13,7 +12,6 @@ import {
   afkPath,
   backlogPath,
   beaconPath,
-  lockPath,
   metaPath,
   projectsPath,
   secondmatesPath,
@@ -27,7 +25,7 @@ import { latestStatus, parseStatusLog } from "./status.js";
 import { parseBacklog } from "./backlog.js";
 import { parseProjects } from "./projects.js";
 import { parseSecondmates } from "./secondmates.js";
-import { isHarnessPidAlive, parseLock } from "./lock.js";
+import { readLockInfo } from "./lock.js";
 import { beaconAgeSeconds, isBeaconFresh } from "./beacon.js";
 import { FM_CAPTAIN_RE_DEFAULT, isCaptainRelevant } from "./captainClassifier.js";
 import { DEFAULT_TIMING } from "./timing.js";
@@ -98,10 +96,7 @@ export async function readCrewState(fmHome: string, id: string): Promise<CrewSta
 }
 
 function buildSupervisionHealth(fmHome: string, timing: TimingConstants, nowMs: number): SupervisionHealth {
-  const lockContent = readIfExists(lockPath(fmHome));
-  const parsedLock: LockInfo = lockContent === null ? { pid: null, alive: null } : parseLock(lockContent);
-  const lock: LockInfo =
-    parsedLock.pid === null ? parsedLock : { pid: parsedLock.pid, alive: isHarnessPidAlive(parsedLock.pid) };
+  const lock = readLockInfo(fmHome);
 
   const beaconStat = statIfExists(beaconPath(fmHome));
   const beaconLastBeatMs = beaconStat?.mtimeMs ?? null;
