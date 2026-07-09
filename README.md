@@ -24,9 +24,10 @@ pushes refreshed snapshots over a WebSocket when `state/` or `data/` changes.
 - Cmd+K (Ctrl+K) opens a command palette: switch tabs, switch home, open a task, interrupt the
   session, enable notifications.
 - Newly-appeared captain-relevant decisions raise an in-app toast, plus a browser Notification
-  when permission is granted (so a backgrounded tab still surfaces it).
-- Fleet task cards open shareable `?task=<id>` detail URLs; closing the detail view returns to
-  the Bridge.
+  when permission is granted (so a backgrounded tab still surfaces it). The first snapshot in each
+  selected home is treated as the notification baseline.
+- Fleet task cards open `?task=<id>` detail URLs within the selected home; the selected home itself
+  is a browser-local preference, not part of the URL. Closing the detail view returns to the Bridge.
 - Task detail shows brief/report markdown, PR and merge-poll status, no-mistakes gate findings,
   and a `.status` history timeline that is explicitly not current-state truth.
 - Does not yet include interactive reply actions or mutating advanced drawer actions planned for
@@ -45,7 +46,8 @@ Stack: Bun workspaces, Hono server (REST + WebSocket), Vite + React 19 + Tailwin
 
 ## Run Locally
 
-One command brings up both the server and the client dev server together:
+One command brings up both the server and the client dev server together, after checking that
+`FM_HOME` is absolute and the configured server `PORT` is free:
 
 ```sh
 $HOME/.bun/bin/bun install
@@ -97,7 +99,8 @@ Composer drafts, prompt history, and the selected home id live in the browser's 
 - `GET /api/tasks/:id?home=<id>` returns a `TaskDetail` for one safe task id in the given home,
   `400` for an unsafe id or unknown home id, and `404` when `state/<id>.meta` does not exist.
 - `GET /ws?home=<id>` upgrades to a WebSocket and sends a `FleetSnapshot` for that home on open
-  and after debounced firstmate `state/` or `data/` changes; `400` for an unknown home id.
+  and after debounced firstmate `state/` or `data/` changes; `400` for an unknown home id and `403`
+  for cross-origin upgrades.
 - `GET /api/skills` returns runtime-discovered skills (`.claude/skills` + `.agents/skills`);
   duplicate ids prefer `.claude`, and only `user-invocable: true` skills appear as quick actions.
 - `GET /api/composer/state` returns the current `ComposerState` (busy/read-only/lock/queue).
