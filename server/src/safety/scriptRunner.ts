@@ -186,8 +186,8 @@ export async function runReadOnlyScript(
 }
 
 /**
- * Phase 1 refuses every mutating script categorically — the allowlist exists so the advanced
- * drawer (Phase 4) can wire calls against it later, but nothing calls through in this phase.
+ * The current read-only deck refuses every mutating script categorically. The allowlist documents
+ * the scripts a later mutating surface may choose from, but nothing calls through today.
  */
 export function runMutatingScript(
   _fmHome: string,

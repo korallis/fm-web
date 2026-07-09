@@ -1,4 +1,4 @@
-/** `state/.last-watcher-beat` carries no content — only its mtime matters. */
+/** `state/.last-watcher-beat` carries no content - only its mtime matters. */
 export function beaconAgeSeconds(beaconMtimeMs: number, nowMs: number): number {
   return Math.max(0, (nowMs - beaconMtimeMs) / 1000);
 }

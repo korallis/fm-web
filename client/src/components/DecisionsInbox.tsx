@@ -30,7 +30,7 @@ function DecisionCard({ item }: { item: DecisionItem }) {
   );
 }
 
-/** Read-only: needs-decision / parked no-mistakes gates, PR-ready, blocked and failed tasks — see adapter/decisions.ts. */
+/** Read-only: needs-decision / parked no-mistakes gates, PR-ready, blocked and failed tasks - see adapter/decisions.ts. */
 export function DecisionsInbox({ decisions }: { decisions: readonly DecisionItem[] }) {
   if (decisions.length === 0) {
     return <p className="font-mono text-sm text-factory-dim">No decisions pending.</p>;

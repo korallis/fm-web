@@ -6,10 +6,10 @@ function detailFor(task: FleetTask): string {
 }
 
 /**
- * Derive the decisions inbox from already-built fleet tasks (no I/O — see `fleetState.ts` for the
+ * Derive the decisions inbox from already-built fleet tasks (no I/O - see `fleetState.ts` for the
  * read side). `fm-crew-state.sh`'s `parked` state is ambiguous by itself: `source: run-step` means a
  * no-mistakes gate is awaiting approval, while any other source means a manual `needs-decision:`
- * status append the log fallback mapped to `parked` for display — see fm-crew-state.sh's
+ * status append the log fallback mapped to `parked` for display - see fm-crew-state.sh's
  * `map_log_state()`. Splitting on `source` recovers the two distinct captain-facing categories.
  */
 export function buildDecisionsInbox(tasks: readonly FleetTask[]): DecisionItem[] {

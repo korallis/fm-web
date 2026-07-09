@@ -2,16 +2,17 @@
 
 **FM Deck** - a local-only web cockpit for firstmate.
 
-Phase 1 is the Bridge dashboard: a read-only view over a firstmate home that builds a fleet
-snapshot from validated disk state, serves it over REST, and pushes refreshed snapshots over a
-WebSocket when `state/` or `data/` changes.
+FM Deck is a read-only cockpit over a firstmate home. It builds a fleet snapshot from validated
+disk state, serves it over REST, and pushes refreshed snapshots over a WebSocket when `state/` or
+`data/` changes.
 
 - Runs on 127.0.0.1 only (local, not exposed).
 - Requires `FM_HOME`; no firstmate home path is hardcoded.
-- Reads firstmate home state read-only; mutating scripts are refused in Phase 1.
-- Shows supervision health, fleet tasks, backlog lanes, and project-mode chips.
-- Does not yet include the composer, command deck, task detail terminals, decisions inbox, wake
-  feed, or advanced drawer planned for later phases.
+- Reads firstmate home state read-only; mutating scripts are refused.
+- Shows supervision health, decisions inbox, fleet tasks, backlog lanes, wake feed, and
+  project-mode chips.
+- Does not yet include the composer, command deck, task detail terminals, interactive reply
+  actions, or mutating advanced drawer actions planned for later phases.
 
 Stack: Bun workspaces, Hono server (REST + WebSocket), Vite + React 19 + Tailwind 4 client,
 strict TypeScript.
@@ -20,7 +21,7 @@ strict TypeScript.
 
 - `shared/` - dependency-free wire types and shared config helpers.
 - `server/` - Bun + Hono server, firstmate disk adapter, chokidar watcher, guarded script runner.
-- `client/` - Vite SPA for the Bridge dashboard.
+- `client/` - Vite SPA for the FM Deck cockpit.
 
 ## Run Locally
 
@@ -53,7 +54,8 @@ Client:
 ## API
 
 - `GET /api/health` returns `{ ok, fmHome }`.
-- `GET /api/fleet` returns the current `FleetSnapshot`.
+- `GET /api/fleet` returns the current `FleetSnapshot`, including tasks, backlog, projects,
+  secondmates, supervision health, decisions, wake-queue entries, and watch-triage entries.
 - `GET /ws` upgrades to a WebSocket and sends a `FleetSnapshot` on open and after debounced
   firstmate `state/` or `data/` changes.
 
@@ -61,9 +63,9 @@ Client:
 
 The adapter reads firstmate files defensively and does not write to `FM_HOME`. The guarded runner
 allows only read-only scripts (`fm-peek.sh`, `fm-crew-state.sh`, `fm-project-mode.sh`,
-`fm-review-diff.sh`, and `fm-lock.sh status`). All mutating scripts are refused in Phase 1;
-`fm-session-start.sh`, `fm-wake-drain.sh`, and bare or acquire-style `fm-lock.sh` calls are
-always refused.
+`fm-review-diff.sh`, and `fm-lock.sh status`). All mutating scripts are refused in the current
+read-only deck; `fm-session-start.sh`, `fm-wake-drain.sh`, and bare or acquire-style `fm-lock.sh`
+calls are always refused.
 
 ## Validation
 

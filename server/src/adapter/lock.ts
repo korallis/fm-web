@@ -4,7 +4,7 @@ import type { LockInfo } from "@fm-web/shared";
 
 const HARNESS_RE = /claude|codex|opencode|grok|^pi$/;
 
-/** Parse `state/.lock` — a bare harness PID, one line, no other fields. */
+/** Parse `state/.lock` - a bare harness PID, one line, no other fields. */
 export function parseLock(content: string): LockInfo {
   const pid = Number(content.trim());
   return { pid: Number.isInteger(pid) && pid > 0 ? pid : null, alive: null };

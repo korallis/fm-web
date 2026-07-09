@@ -1,7 +1,7 @@
 import type { WatchTriageEntry } from "@fm-web/shared";
 
 // `fm-watch.sh`'s `triage_log()` writes `[%Y-%m-%dT%H:%M:%S%z] <message>`, one line per absorbed
-// (benign) wake. Debug trail only — never relied on for correctness, safe to be defensive here.
+// (benign) wake. Debug trail only - never relied on for correctness, safe to be defensive here.
 const LINE_RE = /^\[([^\]]+)]\s?(.*)$/;
 
 /** Parse `state/.watch-triage.log`. Size-capped by the watcher itself; read verbatim, no truncation here. */

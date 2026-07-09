@@ -65,7 +65,7 @@ function isExistingDirectory(path: string): boolean {
   return statIfExists(path)?.isDirectory() ?? false;
 }
 
-/** Task ids are recovered from `state/*.meta` filenames — the id-to-file mapping is a firstmate convention. */
+/** Task ids are recovered from `state/*.meta` filenames - the id-to-file mapping is a firstmate convention. */
 function listTaskIds(fmHome: string): string[] {
   try {
     return readdirSync(stateDir(fmHome))

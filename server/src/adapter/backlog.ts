@@ -144,7 +144,7 @@ function parseDoneItem(id: string, body: string, continuation: string | undefine
   return task;
 }
 
-/** Parse `data/backlog.md` — `## In flight` / `## Queued` / `## Done` sections, tasks-axi-managed. */
+/** Parse `data/backlog.md` - `## In flight` / `## Queued` / `## Done` sections, tasks-axi-managed. */
 export function parseBacklog(content: string): Backlog {
   const lines = content.split("\n");
   const backlog: Backlog = { inFlight: [], queued: [], done: [] };
