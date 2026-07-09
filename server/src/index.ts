@@ -78,6 +78,7 @@ const logSnapshotError = (error: unknown): void => {
 const homeChannels = new HomeChannelRegistry(timing, captainRegex, logSnapshotError);
 
 app.use("/ws", async (c, next) => {
+  if (!isSameOriginRequest(c.req.raw.headers)) return c.text("cross-origin requests are not allowed", 403);
   if (resolveHomeId(fmHome, c.req.query("home")) === null) return c.text("unknown home id", 400);
   return next();
 });
