@@ -50,6 +50,10 @@ export function useFleetSnapshot(): FleetSnapshotState {
       ws = socket;
 
       socket.addEventListener("open", () => {
+        if (stopped) {
+          socket.close();
+          return;
+        }
         reconnectAttempt = 0;
         setWsConnected(true);
         void queryClient.invalidateQueries({ queryKey: FLEET_QUERY_KEY });
@@ -61,8 +65,11 @@ export function useFleetSnapshot(): FleetSnapshotState {
         reconnectAttempt += 1;
         reconnectTimer = window.setTimeout(connect, delayMs);
       });
-      socket.addEventListener("error", () => socket.close());
+      socket.addEventListener("error", () => {
+        if (socket.readyState === WebSocket.OPEN) socket.close();
+      });
       socket.addEventListener("message", (event) => {
+        if (stopped) return;
         try {
           const data = JSON.parse(event.data as string) as FleetSnapshot;
           queryClient.setQueryData<FleetSnapshot>(FLEET_QUERY_KEY, (current) =>
@@ -79,7 +86,7 @@ export function useFleetSnapshot(): FleetSnapshotState {
     return () => {
       stopped = true;
       if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
-      ws?.close();
+      if (ws?.readyState === WebSocket.OPEN) ws.close();
     };
   }, [queryClient]);
 
