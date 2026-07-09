@@ -6,10 +6,12 @@ export function isSameOriginRequest(headers: Headers): boolean {
   if (host === null || host.trim() === "") return false;
 
   try {
-    return new URL(origin).host === host;
+    if (new URL(origin).host === host) return true;
   } catch {
     return false;
   }
+
+  return headers.get("sec-fetch-site") === "same-origin";
 }
 
 export function crossOriginResponse(): Response {

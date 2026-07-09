@@ -18,6 +18,30 @@ describe("isSameOriginRequest", () => {
     );
   });
 
+  it("allows a same-origin browser request forwarded by a dev proxy", () => {
+    expect(
+      isSameOriginRequest(
+        new Headers({
+          host: "127.0.0.1:4987",
+          origin: "http://127.0.0.1:5197",
+          "sec-fetch-site": "same-origin",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a cross-site browser request with a different host", () => {
+    expect(
+      isSameOriginRequest(
+        new Headers({
+          host: "127.0.0.1:4987",
+          origin: "http://evil.example",
+          "sec-fetch-site": "cross-site",
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects invalid Origin headers", () => {
     expect(isSameOriginRequest(new Headers({ host: "127.0.0.1:3000", origin: "null" }))).toBe(false);
   });
