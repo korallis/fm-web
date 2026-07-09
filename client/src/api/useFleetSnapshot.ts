@@ -2,15 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FleetSnapshot } from "@fm-web/shared";
 import { taskDetailQueryKey } from "./useTaskDetail";
+import { homesQueryKey } from "./useHomes";
 import { connectWithBackoff } from "./wsReconnect";
 
 function fleetQueryKey(homeId: string): readonly ["fleet", string] {
   return ["fleet", homeId] as const;
 }
 
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function fetchFleetSnapshot(homeId: string): Promise<FleetSnapshot> {
   const res = await fetch(`/api/fleet?home=${encodeURIComponent(homeId)}`);
-  if (!res.ok) throw new Error(`GET /api/fleet failed: ${res.status}`);
+  if (!res.ok) throw new HttpError(res.status, `GET /api/fleet failed: ${res.status}`);
   return (await res.json()) as FleetSnapshot;
 }
 
@@ -47,6 +57,11 @@ export function useFleetSnapshot(homeId: string, activeTaskId: string | null = n
   }, [activeTaskId]);
 
   useEffect(() => {
+    if (query.error instanceof HttpError && query.error.status === 400)
+      void queryClient.invalidateQueries({ queryKey: homesQueryKey });
+  }, [query.error, queryClient]);
+
+  useEffect(() => {
     const liveQueryKey = fleetQueryKey(homeId);
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/ws?home=${encodeURIComponent(homeId)}`;
@@ -59,12 +74,14 @@ export function useFleetSnapshot(homeId: string, activeTaskId: string | null = n
     return connectWithBackoff(url, {
       onStatusChange: setWsConnected,
       onOpen: () => {
+        void queryClient.invalidateQueries({ queryKey: homesQueryKey });
         void queryClient.invalidateQueries({ queryKey: liveQueryKey });
         invalidateActiveTask();
       },
       onMessage: (data) => {
         try {
           const parsed = JSON.parse(data) as FleetSnapshot;
+          void queryClient.invalidateQueries({ queryKey: homesQueryKey });
           queryClient.setQueryData<FleetSnapshot>(liveQueryKey, (current) =>
             preferNewestSnapshot(current, parsed),
           );

@@ -13,6 +13,8 @@ async function fetchHomes(): Promise<HomesResponse> {
   return (await res.json()) as HomesResponse;
 }
 
+export const homesQueryKey = ["homes"] as const;
+
 export function useHomes() {
-  return useQuery({ queryKey: ["homes"], queryFn: fetchHomes });
+  return useQuery({ queryKey: homesQueryKey, queryFn: fetchHomes });
 }

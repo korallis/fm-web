@@ -36,7 +36,7 @@ export function CommandPalette({ open, commands, onClose }: CommandPaletteProps)
   }, [commands, query]);
 
   useEffect(() => {
-    setActiveIndex((i) => Math.min(i, Math.max(filtered.length - 1, 0)));
+    setActiveIndex((i) => Math.min(Math.max(i, 0), Math.max(filtered.length - 1, 0)));
   }, [filtered.length]);
 
   if (!open) return null;
@@ -51,7 +51,7 @@ export function CommandPalette({ open, commands, onClose }: CommandPaletteProps)
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex((i) => (filtered.length === 0 ? 0 : Math.min(i + 1, filtered.length - 1)));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
