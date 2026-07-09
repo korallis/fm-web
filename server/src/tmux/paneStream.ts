@@ -31,7 +31,8 @@ export async function ensurePaneStream(target: string, sessionName: string): Pro
   mkdirSync(LOG_DIR, { recursive: true });
   const path = logPathFor(sessionName);
   if (!existsSync(path)) closeSync(openSync(path, "a"));
-  await pipePaneAppend(target, path);
+  const piped = await pipePaneAppend(target, path);
+  if (!piped) throw new Error(`tmux pipe-pane failed for ${target}`);
   return path;
 }
 

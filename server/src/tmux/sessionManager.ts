@@ -26,6 +26,10 @@ export function sessionTargetFor(fmHome: string): string {
   return `${sessionNameFor(fmHome)}:${WINDOW_NAME}`;
 }
 
+export async function isFirstMateSessionReady(fmHome: string): Promise<boolean> {
+  return hasSession(sessionNameFor(fmHome));
+}
+
 export interface EnsureSessionResult {
   target: string;
   created: boolean;

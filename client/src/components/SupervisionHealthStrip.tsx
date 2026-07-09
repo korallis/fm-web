@@ -9,11 +9,13 @@ function formatAge(seconds: number | null): string {
 
 function lockLabel(lock: SupervisionHealth["lock"]): string {
   if (lock.pid === null) return "lock: free";
+  if (lock.pid < 0) return "lock: unknown";
   return lock.alive ? `lock: held (pid ${lock.pid})` : `lock: stale (pid ${lock.pid})`;
 }
 
 function lockTone(lock: SupervisionHealth["lock"]): "accent" | "neutral" | "warn" {
   if (lock.pid === null) return "neutral";
+  if (lock.pid < 0) return "warn";
   return lock.alive ? "accent" : "warn";
 }
 

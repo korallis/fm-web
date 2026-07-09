@@ -8,7 +8,7 @@ vi.mock("../../src/tmux/tmuxClient.js", () => ({
 }));
 
 const tmuxClient = await import("../../src/tmux/tmuxClient.js");
-const { ensureFirstMateSession } = await import("../../src/tmux/sessionManager.js");
+const { ensureFirstMateSession, isFirstMateSessionReady } = await import("../../src/tmux/sessionManager.js");
 
 describe("ensureFirstMateSession failure handling", () => {
   beforeEach(() => {
@@ -22,5 +22,12 @@ describe("ensureFirstMateSession failure handling", () => {
     await expect(ensureFirstMateSession("/tmp/fm-web-test-home", "sleep 30")).rejects.toThrow(
       "tmux new-session failed: tmux failed",
     );
+  });
+
+  it("checks the live deterministic tmux session for readiness", async () => {
+    vi.mocked(tmuxClient.hasSession).mockResolvedValue(false);
+
+    await expect(isFirstMateSessionReady("/tmp/fm-web-test-home")).resolves.toBe(false);
+    expect(tmuxClient.hasSession).toHaveBeenCalledWith(expect.stringMatching(/^fm-deck-/));
   });
 });

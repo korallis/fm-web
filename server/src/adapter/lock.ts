@@ -5,6 +5,13 @@ import type { LockInfo } from "@fm-web/shared";
 import { lockPath } from "./paths.js";
 
 const HARNESS_RE = /claude|codex|opencode|grok|^pi$/;
+export const UNKNOWN_LOCK_PID = -1;
+
+function isMissingPathError(error: unknown): boolean {
+  if (error === null || typeof error !== "object" || !("code" in error)) return false;
+  const code = error.code;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
 
 /** Parse `state/.lock` - a bare harness PID, one line, no other fields. */
 export function parseLock(content: string): LockInfo {
@@ -43,8 +50,9 @@ export function readLockInfo(fmHome: string): LockInfo {
   let content: string;
   try {
     content = readFileSync(lockPath(fmHome), "utf8");
-  } catch {
-    return { pid: null, alive: null };
+  } catch (error) {
+    if (isMissingPathError(error)) return { pid: null, alive: null };
+    return { pid: UNKNOWN_LOCK_PID, alive: true };
   }
   const parsed = parseLock(content);
   return parsed.pid === null ? parsed : { pid: parsed.pid, alive: isHarnessPidAlive(parsed.pid) };

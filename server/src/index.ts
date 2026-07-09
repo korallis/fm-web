@@ -10,7 +10,12 @@ import { loadTimingFromEnv } from "./adapter/timing.js";
 import { loadHarnessCommandFromEnv, loadPortFromEnv } from "./config.js";
 import { SnapshotBroadcaster } from "./snapshotBroadcaster.js";
 import { ComposerQueue } from "./composer/queue.js";
-import { ensureFirstMateSession, isLockHeldByOwnSession, isSessionBusy } from "./tmux/sessionManager.js";
+import {
+  ensureFirstMateSession,
+  isFirstMateSessionReady,
+  isLockHeldByOwnSession,
+  isSessionBusy,
+} from "./tmux/sessionManager.js";
 import { captureResyncSnapshot, ensurePaneStream, PaneTailer } from "./tmux/paneStream.js";
 import { submitText } from "./tmux/submit.js";
 import { sendKey } from "./tmux/tmuxClient.js";
@@ -65,7 +70,7 @@ const composerQueue = new ComposerQueue({
   isBusy: async () => (deck.target === null ? false : isSessionBusy(deck.target)),
   isReadOnly,
   getLock: async () => readLockInfo(fmHome),
-  isSessionReady: async () => deck.target !== null,
+  isSessionReady: async () => deck.target !== null && (await isFirstMateSessionReady(fmHome)),
 });
 
 const app = createApp(fmHome, {
