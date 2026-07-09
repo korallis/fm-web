@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { DecisionItem } from "@fm-web/shared";
 import { useFleetSnapshot, type FleetSnapshotState } from "./api/useFleetSnapshot";
 import { useHomes, type HomesResponse } from "./api/useHomes";
 import { interruptSession } from "./api/useComposerSend";
@@ -21,6 +22,8 @@ import { NotificationBell } from "./notifications/NotificationBell";
 import { CommandPalette, type PaletteCommand } from "./palette/CommandPalette";
 import { useCommandPaletteHotkey } from "./palette/useCommandPaletteHotkey";
 import type { FleetSnapshot } from "@fm-web/shared";
+import { AdvancedDrawer } from "./components/AdvancedDrawer";
+import { useComposerLocalState } from "./composer/useComposerLocalState";
 
 type Tab = "deck" | "bridge";
 
@@ -54,6 +57,12 @@ function Bridge({
 }) {
   const { snapshot, isLoading, error, wsConnected } = fleet;
   const commandDeckHome = homes?.homes.find((home) => home.id === homes.commandDeckHomeId)?.path;
+  const composerLocalState = useComposerLocalState(commandDeckHome);
+
+  const replyToDecision = (item: DecisionItem): void => {
+    composerLocalState.setDraft(`${item.taskId}: `);
+    onSelectTab("deck");
+  };
 
   return (
     <>
@@ -95,7 +104,9 @@ function Bridge({
         </div>
       </header>
 
-      {tab === "deck" && <CommandDeck fmHome={commandDeckHome} />}
+      {tab === "deck" && (
+        <CommandDeck fmHome={commandDeckHome} composerLocalState={composerLocalState} />
+      )}
 
       {tab === "bridge" && (
         <>
@@ -117,7 +128,7 @@ function Bridge({
                 <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">
                   Decisions ({snapshot.decisions.length})
                 </h2>
-                <DecisionsInbox decisions={snapshot.decisions} />
+                <DecisionsInbox decisions={snapshot.decisions} onReply={replyToDecision} />
               </section>
 
               <section>
@@ -150,6 +161,10 @@ function Bridge({
               <section>
                 <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">X mode</h2>
                 <XModePanel tasks={snapshot.tasks} />
+              </section>
+
+              <section>
+                <AdvancedDrawer />
               </section>
             </div>
           )}

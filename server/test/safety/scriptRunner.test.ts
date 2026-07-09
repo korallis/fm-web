@@ -241,24 +241,76 @@ describe("readNoMistakesGateStatus", () => {
   });
 });
 
-describe("runMutatingScript — Phase 1 refuses ALL mutating scripts", () => {
-  for (const script of MUTATING_SCRIPTS) {
-    it(`refuses ${script}`, () => {
-      expect(() => runMutatingScript(FIXTURE_HOME, script, [])).toThrow(ScriptGuardError);
-    });
-  }
+describe("runMutatingScript", () => {
+  it("executes an allowlisted mutating script end to end", async () => {
+    const result = await runMutatingScript(FIXTURE_HOME, "fm-send.sh", ["some-target", "hello"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("stub sent to some-target: hello");
+  });
 
-  it("refuses a script that is not on the mutating allowlist either", () => {
-    expect(() => runMutatingScript(FIXTURE_HOME, "fm-peek.sh" as unknown as MutatingScript, [])).toThrow(
-      ScriptGuardError,
-    );
+  it("times out an allowlisted mutating script", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "bin"), { recursive: true });
+      writeFileSync(join(fmHome, "bin", "fm-send.sh"), "#!/bin/sh\nsleep 2\nprintf done\n");
+      chmodSync(join(fmHome, "bin", "fm-send.sh"), 0o755);
+
+      await expect(runMutatingScript(fmHome, "fm-send.sh", [], { timeoutMs: 25 })).rejects.toThrow(
+        /timed out/,
+      );
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an allowlisted mutating script that exceeds the output cap", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "bin"), { recursive: true });
+      writeFileSync(join(fmHome, "bin", "fm-send.sh"), "#!/bin/sh\nprintf abcdef\n");
+      chmodSync(join(fmHome, "bin", "fm-send.sh"), 0o755);
+
+      await expect(runMutatingScript(fmHome, "fm-send.sh", [], { maxOutputBytes: 3 })).rejects.toThrow(
+        /output exceeded/,
+      );
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a script name containing path separators (traversal attempt)", async () => {
+    await expect(
+      runMutatingScript(FIXTURE_HOME, "../fm-send.sh" as unknown as MutatingScript, []),
+    ).rejects.toThrow(ScriptGuardError);
+  });
+
+  it("refuses a script that is not on the mutating allowlist either", async () => {
+    await expect(
+      runMutatingScript(FIXTURE_HOME, "fm-peek.sh" as unknown as MutatingScript, []),
+    ).rejects.toThrow(ScriptGuardError);
   });
 
   for (const forbidden of NEVER_RUN_SCRIPTS) {
-    it(`NEVER runs ${forbidden} via the mutating path either`, () => {
-      expect(() => runMutatingScript(FIXTURE_HOME, forbidden as unknown as MutatingScript, [])).toThrow(
-        ScriptGuardError,
-      );
+    it(`NEVER runs ${forbidden} via the mutating path either`, async () => {
+      await expect(
+        runMutatingScript(FIXTURE_HOME, forbidden as unknown as MutatingScript, []),
+      ).rejects.toThrow(ScriptGuardError);
     });
   }
+
+  it("accepts every documented mutating script name as a known literal", () => {
+    // Compile-time check: this only type-checks if the allowlist matches the safety contract.
+    const scripts: readonly MutatingScript[] = MUTATING_SCRIPTS;
+    expect(scripts).toEqual([
+      "fm-brief.sh",
+      "fm-spawn.sh",
+      "fm-send.sh",
+      "fm-teardown.sh",
+      "fm-pr-check.sh",
+      "fm-pr-merge.sh",
+      "fm-merge-local.sh",
+      "fm-promote.sh",
+      "fm-watch-arm.sh",
+    ]);
+  });
 });

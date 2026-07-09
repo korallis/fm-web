@@ -68,6 +68,7 @@ const app = createApp(fmHome, {
       if (deck.target === null || (await isReadOnly())) return false;
       return sendKey(deck.target, "C-c");
     },
+    isReadOnly,
   },
 });
 

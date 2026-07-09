@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { TimingConstants } from "@fm-web/shared";
+import type { GuardedActionRequest, PeekResult, TimingConstants } from "@fm-web/shared";
 import { buildFleetSnapshot } from "./adapter/fleetState.js";
 import { buildTaskDetail } from "./adapter/taskDetail.js";
 import { isSafeTaskId } from "./adapter/paths.js";
@@ -7,12 +7,20 @@ import { discoverHomes, resolveHomeId } from "./adapter/homes.js";
 import { discoverSkills } from "./adapter/skills.js";
 import type { ComposerQueue } from "./composer/queue.js";
 import { crossOriginResponse, isSameOriginRequest } from "./http/origin.js";
+import { MUTATING_SCRIPTS } from "./safety/allowlist.js";
+import { ADVANCED_DRAWER_READONLY_SCRIPTS, runGuardedAction } from "./safety/guardedActions.js";
+import { listAudit } from "./safety/audit.js";
+import { runReadOnlyScript } from "./safety/scriptRunner.js";
+
+const ADVANCED_DRAWER_SCRIPTS: readonly string[] = [...MUTATING_SCRIPTS, ...ADVANCED_DRAWER_READONLY_SCRIPTS];
 
 export interface CommandDeckDeps {
   fmHome: string;
   composerQueue: ComposerQueue;
   /** Sends Ctrl-C to the app-owned session; returns false when read-only. */
   interrupt: () => Promise<boolean>;
+  /** True when a live firstmate session other than our own owned one holds `state/.lock`. */
+  isReadOnly: () => Promise<boolean>;
 }
 
 export interface SnapshotOptions {
@@ -25,6 +33,27 @@ function extractText(body: unknown): string | null {
   if (body === null || typeof body !== "object" || !("text" in body)) return null;
   const text = (body as { text: unknown }).text;
   return typeof text === "string" ? text : null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+const DEFAULT_PEEK_LINES = 200;
+const MAX_PEEK_LINES = 2000;
+
+function parsePeekLines(raw: string | undefined): number {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) return DEFAULT_PEEK_LINES;
+  return Math.min(value, MAX_PEEK_LINES);
+}
+
+function extractGuardedActionRequest(body: unknown): GuardedActionRequest | null {
+  if (body === null || typeof body !== "object" || !("script" in body) || !("args" in body)) return null;
+  const { script, args } = body as { script: unknown; args: unknown };
+  if (typeof script !== "string") return null;
+  if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === "string")) return null;
+  return { script, args };
 }
 
 /** The Hono app factory, isolated from Bun.serve/websocket wiring so it's directly testable. */
@@ -48,6 +77,40 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     return c.json(detail);
   });
 
+  // Crew peek/steer: `fm-peek.sh`/`fm-send.sh` resolve their own target from `state/<id>.meta`, so
+  // these work against any crew task regardless of whether the app-owned command deck is wired.
+  app.get("/api/tasks/:id/peek", async (c) => {
+    const id = c.req.param("id");
+    if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
+    const home = resolveHomeId(fmHome, c.req.query("home"));
+    if (home === null) return c.json({ error: "unknown home id" }, 400);
+    const lines = parsePeekLines(c.req.query("lines"));
+    try {
+      const result = await runReadOnlyScript(home, "fm-peek.sh", [id, String(lines)]);
+      return c.json({ text: result.stdout } satisfies PeekResult);
+    } catch (error) {
+      return c.json({ error: errorMessage(error) }, 502);
+    }
+  });
+  app.post("/api/tasks/:id/send", async (c) => {
+    if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
+    const id = c.req.param("id");
+    if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
+    const home = resolveHomeId(fmHome, c.req.query("home"));
+    if (home === null) return c.json({ error: "unknown home id" }, 400);
+    const text = extractText(await c.req.json().catch(() => null));
+    if (text === null) return c.json({ error: "body must be { text: string }" }, 400);
+    return c.json(await runGuardedAction(home, "fm-send.sh", [id, text]));
+  });
+  app.post("/api/tasks/:id/interrupt", async (c) => {
+    if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
+    const id = c.req.param("id");
+    if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
+    const home = resolveHomeId(fmHome, c.req.query("home"));
+    if (home === null) return c.json({ error: "unknown home id" }, 400);
+    return c.json(await runGuardedAction(home, "fm-send.sh", [id, "--key", "C-c"]));
+  });
+
   const commandDeck = options.commandDeck;
   if (commandDeck === undefined) {
     const notConfigured = (): Response =>
@@ -56,6 +119,8 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     app.get("/api/composer/state", notConfigured);
     app.post("/api/composer/send", notConfigured);
     app.post("/api/session/interrupt", notConfigured);
+    app.post("/api/advanced/run", notConfigured);
+    app.get("/api/advanced/audit", notConfigured);
     return app;
   }
 
@@ -72,6 +137,31 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
     return c.json({ sent: await commandDeck.interrupt() });
   });
+
+  // The advanced drawer: the ONLY place direct mutating-script execution is exposed, gated same
+  // as every other mutating route plus a read-only-lock check (coexistence: degrade when another
+  // live firstmate session holds the app-owned session's lock). `fm-review-diff.sh` is read-only
+  // anytime per the safety contract, so it alone is exempt from the lock check.
+  app.post("/api/advanced/run", async (c) => {
+    if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
+    const request = extractGuardedActionRequest(await c.req.json().catch(() => null));
+    if (request === null) return c.json({ error: "body must be { script: string, args: string[] }" }, 400);
+    if (!ADVANCED_DRAWER_SCRIPTS.includes(request.script)) {
+      return c.json({
+        ok: false,
+        exitCode: null,
+        stdout: "",
+        stderr: "",
+        error: "not an advanced-drawer script",
+      });
+    }
+    const isMutating = (MUTATING_SCRIPTS as readonly string[]).includes(request.script);
+    if (isMutating && (await commandDeck.isReadOnly())) {
+      return c.json({ ok: false, exitCode: null, stdout: "", stderr: "", error: "read-only" }, 409);
+    }
+    return c.json(await runGuardedAction(commandDeck.fmHome, request.script, request.args));
+  });
+  app.get("/api/advanced/audit", (c) => c.json({ entries: listAudit() }));
 
   return app;
 }

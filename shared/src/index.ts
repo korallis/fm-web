@@ -286,3 +286,34 @@ export type SessionWsMessage =
   | { type: "snapshot"; text: string }
   | { type: "chunk"; text: string }
   | { type: "composerState"; state: ComposerState };
+
+// ---- Phase 5: crew peek/steer + advanced drawer (guarded mutating scripts) ----
+
+/** `fm-peek.sh <target> [lines]` output - a plain-text snapshot, never ANSI. */
+export interface PeekResult {
+  text: string;
+}
+
+/** One guarded script invocation: `args` are passed as literal argv, never shell-interpolated. */
+export interface GuardedActionRequest {
+  script: string;
+  args: string[];
+}
+
+export interface GuardedActionResult {
+  ok: boolean;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  error?: string;
+}
+
+/** One entry in the advanced drawer's in-memory (process-lifetime) audit log. */
+export interface AuditLogEntry {
+  id: string;
+  atMs: number;
+  script: string;
+  args: string[];
+  ok: boolean;
+  summary: string;
+}
