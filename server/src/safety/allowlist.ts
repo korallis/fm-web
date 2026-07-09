@@ -1,6 +1,6 @@
 /**
  * The guarded script runner's allowlists. This is the one place that decides what firstmate
- * scripts this app may ever invoke — see the plan's Safety contract for the full rationale.
+ * scripts this app may ever invoke - see the plan's Safety contract for the full rationale.
  */
 
 /** Read-only anytime, per the safety contract. `fm-lock.sh` is restricted to the `status` arg below. */
@@ -12,7 +12,7 @@ export const READ_ONLY_SCRIPTS = [
   "fm-lock.sh",
 ] as const;
 
-/** Advanced-drawer only, and NOT wired to any caller in Phase 1 — always refused here. */
+/** Future mutating surfaces only, and NOT wired to any caller today - always refused here. */
 export const MUTATING_SCRIPTS = [
   "fm-brief.sh",
   "fm-spawn.sh",
@@ -26,7 +26,7 @@ export const MUTATING_SCRIPTS = [
 ] as const;
 
 /**
- * Never run from the app under any flag, allowlist or not — they destructively drain the
+ * Never run from the app under any flag, allowlist or not - they destructively drain the
  * wake queue or take the harness lock out from under a live session.
  */
 export const NEVER_RUN_SCRIPTS = ["fm-session-start.sh", "fm-wake-drain.sh"] as const;

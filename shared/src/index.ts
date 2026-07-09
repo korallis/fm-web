@@ -3,7 +3,7 @@
 
 export type TaskKind = "ship" | "scout" | "secondmate";
 
-/** `state/<id>.meta` — key=value pairs. Unknown keys pass through in `extra`. */
+/** `state/<id>.meta` - key=value pairs. Unknown keys pass through in `extra`. */
 export interface CrewMeta {
   window?: string;
   worktree?: string;
@@ -86,7 +86,7 @@ export interface Backlog {
   done: BacklogDoneTask[];
 }
 
-/** `data/projects.md` — one project registry line. */
+/** `data/projects.md` - one project registry line. */
 export interface ProjectEntry {
   name: string;
   mode: string;
@@ -95,7 +95,7 @@ export interface ProjectEntry {
   added: string;
 }
 
-/** `data/secondmates.md` — one secondmate registry line. */
+/** `data/secondmates.md` - one secondmate registry line. */
 export interface SecondmateEntry {
   id: string;
   summary: string;
@@ -160,6 +160,31 @@ export interface TimingConstants {
   checkIntervalSeconds: number;
 }
 
+/** One line from `state/.watch-triage.log` - `[ISO8601±TZ] <message>`, the watcher's absorbed-wake debug trail. */
+export interface WatchTriageEntry {
+  /** null when the leading `[...]` timestamp is missing or unparseable. */
+  timestampMs: number | null;
+  message: string;
+  raw: string;
+}
+
+/**
+ * The decisions inbox surfaces the subset of {@link CrewState} values that need a captain's eyes,
+ * derived from each task's already-parsed crew state - see `adapter/decisions.ts`.
+ * - `needs-decision`: a manual `needs-decision:` status append (crew-state source `status-log`).
+ * - `parked-gate`: a no-mistakes gate awaiting approval (crew-state source `run-step`).
+ * - `done` / `blocked` / `failed`: the matching current crew state.
+ */
+export type DecisionCategory = "needs-decision" | "parked-gate" | "done" | "blocked" | "failed";
+
+export interface DecisionItem {
+  taskId: string;
+  category: DecisionCategory;
+  /** Verbatim detail text - the raw status line when available, else the crew-state detail. */
+  detail: string;
+  source: CrewStateSource;
+}
+
 export interface FleetSnapshot {
   generatedAtMs: number;
   fmHome: string;
@@ -168,4 +193,9 @@ export interface FleetSnapshot {
   projects: ProjectEntry[];
   secondmates: SecondmateEntry[];
   supervision: SupervisionHealth;
+  decisions: DecisionItem[];
+  /** Read-only tail of `state/.wake-queue`. */
+  wakeQueue: WakeEntry[];
+  /** Read-only tail of `state/.watch-triage.log`. */
+  watchTriage: WatchTriageEntry[];
 }

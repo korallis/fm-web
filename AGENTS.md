@@ -12,7 +12,9 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 ## FM adapter + safety module
 
-`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar) read-only; brief/report helpers are path-only for now. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
+`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar, plus Phase 4's watch-triage log) read-only; brief/report helpers are path-only for now. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
+
+`fm-crew-state.sh`'s `parked` state is ambiguous on its own: `source: run-step` means a no-mistakes gate is awaiting approval, while any other source means the log fallback mapped a manual `needs-decision:` status append to `parked` for display (see the reference script's `map_log_state()`). `server/src/adapter/decisions.ts` splits on `crewState.source` to recover those two distinct captain-facing categories for the decisions inbox.
 
 ## Hono + Bun websocket gotcha
 

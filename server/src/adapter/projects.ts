@@ -3,7 +3,7 @@ import type { ProjectEntry } from "@fm-web/shared";
 // `- <name> [<mode> +yolo] - <description> (added <date>)`; bracket is optional (defaults to no-mistakes).
 const LINE_RE = /^-\s*(\S+)\s*(?:\[([^\]]*)\])?\s*-\s*(.+?)\s*\(added\s+([^)]+)\)\s*$/;
 
-/** Parse `data/projects.md` — the project registry. Mode is read-only; edit via the first mate. */
+/** Parse `data/projects.md` - the project registry. Mode is read-only; edit via the first mate. */
 export function parseProjects(content: string): ProjectEntry[] {
   const entries: ProjectEntry[] = [];
   for (const line of content.split("\n")) {

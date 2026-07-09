@@ -3,6 +3,8 @@ import { FleetGrid } from "./components/FleetGrid";
 import { BacklogLanes } from "./components/BacklogLanes";
 import { SupervisionHealthStrip } from "./components/SupervisionHealthStrip";
 import { ProjectModeChips } from "./components/ProjectModeChips";
+import { DecisionsInbox } from "./components/DecisionsInbox";
+import { WakeFeed } from "./components/WakeFeed";
 
 export function App() {
   const { snapshot, isLoading, error, wsConnected } = useFleetSnapshot();
@@ -29,6 +31,13 @@ export function App() {
           </section>
 
           <section>
+            <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">
+              Decisions ({snapshot.decisions.length})
+            </h2>
+            <DecisionsInbox decisions={snapshot.decisions} />
+          </section>
+
+          <section>
             <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">Fleet</h2>
             <FleetGrid tasks={snapshot.tasks} />
           </section>
@@ -36,6 +45,11 @@ export function App() {
           <section>
             <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">Backlog</h2>
             <BacklogLanes backlog={snapshot.backlog} />
+          </section>
+
+          <section>
+            <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">Wake feed</h2>
+            <WakeFeed wakeQueue={snapshot.wakeQueue} watchTriage={snapshot.watchTriage} />
           </section>
 
           <section>

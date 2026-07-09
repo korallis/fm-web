@@ -7,7 +7,7 @@ function toVerb(rawVerb: string): StatusVerb {
 }
 
 /**
- * Parse `state/<id>.status` — an append-only log of `"{verb}: {note}"` lines.
+ * Parse `state/<id>.status` - an append-only log of `"{verb}: {note}"` lines.
  * NEVER current-state truth on its own; see `crewState.ts` for the real state grammar.
  */
 export function parseStatusLog(content: string): StatusEntry[] {

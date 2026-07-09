@@ -37,6 +37,10 @@ export function afkPath(fmHome: string): string {
   return join(stateDir(fmHome), ".afk");
 }
 
+export function watchTriagePath(fmHome: string): string {
+  return join(stateDir(fmHome), ".watch-triage.log");
+}
+
 export function backlogPath(fmHome: string): string {
   return join(dataDir(fmHome), "backlog.md");
 }

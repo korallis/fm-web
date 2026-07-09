@@ -7,7 +7,7 @@ function isWakeKind(value: string): value is WakeKind {
 }
 
 /**
- * Parse `state/.wake-queue` — tab-separated `epoch\tseq\tkind\tkey\tpayload` lines.
+ * Parse `state/.wake-queue` - tab-separated `epoch\tseq\tkind\tkey\tpayload` lines.
  * Malformed lines and unrecognized `kind` values are dropped defensively (the writer,
  * `fm_wake_append` in fm-wake-lib.sh, enforces the kind enum, so this should not happen
  * in practice).
