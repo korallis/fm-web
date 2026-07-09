@@ -80,16 +80,21 @@ function buildScriptEnv(fmHome: string): Record<string, string | undefined> {
   return env;
 }
 
+interface SpawnOptions {
+  cwd: string;
+  env: Record<string, string | undefined>;
+}
+
 function runSpawn(
-  scriptPath: string,
+  command: string,
   args: readonly string[],
-  fmHome: string,
+  options: SpawnOptions,
   limits: NormalizedScriptRunLimits,
 ): Promise<ScriptResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(scriptPath, args, {
-      cwd: fmHome,
-      env: buildScriptEnv(fmHome),
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
       detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -99,7 +104,7 @@ function runSpawn(
     let settled = false;
     let terminationTimer: ReturnType<typeof setTimeout> | undefined;
     const timeoutTimer = setTimeout(() => {
-      rejectWithGuardError(`script timed out after ${limits.timeoutMs}ms: ${scriptPath}`);
+      rejectWithGuardError(`script timed out after ${limits.timeoutMs}ms: ${command}`);
     }, limits.timeoutMs);
 
     const clearTimers = (): void => {
@@ -140,7 +145,7 @@ function runSpawn(
       if (settled) return;
       outputBytes += chunk.byteLength;
       if (outputBytes > limits.maxOutputBytes) {
-        rejectWithGuardError(`script output exceeded ${limits.maxOutputBytes} bytes: ${scriptPath}`);
+        rejectWithGuardError(`script output exceeded ${limits.maxOutputBytes} bytes: ${command}`);
         return;
       }
       if (streamName === "stdout") stdout += chunk.toString();
@@ -182,12 +187,54 @@ export async function runReadOnlyScript(
   }
   assertLockArgsSafe(scriptName, args);
   const resolved = resolveScriptPath(fmHome, scriptName);
-  return runSpawn(resolved.scriptPath, args, resolved.fmHome, normalizeScriptRunLimits(limits));
+  return runSpawn(
+    resolved.scriptPath,
+    args,
+    { cwd: resolved.fmHome, env: buildScriptEnv(resolved.fmHome) },
+    normalizeScriptRunLimits(limits),
+  );
+}
+
+const NO_MISTAKES_STATUS_TIMEOUT_MS = 8_000;
+const DEFAULT_NO_MISTAKES_COMMAND = "no-mistakes";
+
+export interface NoMistakesStatusOptions extends ScriptRunLimits {
+  /** Override for tests; defaults to the `no-mistakes` binary resolved from PATH. */
+  command?: string;
 }
 
 /**
- * The current read-only deck refuses every mutating script categorically. The allowlist documents
- * the scripts a later mutating surface may choose from, but nothing calls through today.
+ * Read-only `no-mistakes axi status` run inside a crew's worktree — the exact same non-mutating
+ * query `fm-crew-state.sh` already shells out to (`nm_run axi status`) for every fleet task on
+ * every poll, just with the raw TOON kept instead of flattened into one summary line. Never
+ * writes anything; `axi status`/`axi logs` are informational reads, not part of the firstmate
+ * bin/fm-*.sh allowlist above because `no-mistakes` is a separate tool, not a firstmate script.
+ * Returns null on any failure (binary missing, timeout, non-zero exit, no run) so the task-detail
+ * gate-findings panel renders an empty state instead of erroring.
+ */
+export async function readNoMistakesGateStatus(
+  worktree: string,
+  options: NoMistakesStatusOptions = {},
+): Promise<string | null> {
+  const { command = DEFAULT_NO_MISTAKES_COMMAND, ...limits } = options;
+  try {
+    const result = await runSpawn(
+      command,
+      ["axi", "status"],
+      { cwd: worktree, env: process.env },
+      normalizeScriptRunLimits({ timeoutMs: NO_MISTAKES_STATUS_TIMEOUT_MS, ...limits }),
+    );
+    if (result.exitCode !== 0) return null;
+    const trimmed = result.stdout.trim();
+    return trimmed === "" ? null : trimmed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The current read-only deck refuses every mutating script categorically. The allowlist exists so
+ * future mutating surfaces can wire calls against it later, but nothing calls through today.
  */
 export function runMutatingScript(
   _fmHome: string,

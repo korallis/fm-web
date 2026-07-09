@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runMutatingScript, runReadOnlyScript, ScriptGuardError } from "../../src/safety/scriptRunner.js";
+import {
+  readNoMistakesGateStatus,
+  runMutatingScript,
+  runReadOnlyScript,
+  ScriptGuardError,
+} from "../../src/safety/scriptRunner.js";
 import { MUTATING_SCRIPTS, NEVER_RUN_SCRIPTS, READ_ONLY_SCRIPTS } from "../../src/safety/allowlist.js";
 import type { MutatingScript, ReadOnlyScript } from "../../src/safety/allowlist.js";
 
@@ -168,6 +173,71 @@ describe("runReadOnlyScript", () => {
       "fm-review-diff.sh",
       "fm-lock.sh",
     ]);
+  });
+});
+
+describe("readNoMistakesGateStatus", () => {
+  it("returns raw stdout on a clean exit", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      const stub = join(fmHome, "no-mistakes-stub.sh");
+      writeFileSync(stub, "#!/bin/sh\nprintf 'run:\\n  status: completed\\noutcome: passed\\n'\n");
+      chmodSync(stub, 0o755);
+
+      const result = await readNoMistakesGateStatus(fmHome, { command: stub });
+
+      expect(result).toContain("outcome: passed");
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null when the command exits non-zero", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      const stub = join(fmHome, "no-mistakes-stub.sh");
+      writeFileSync(stub, "#!/bin/sh\nexit 1\n");
+      chmodSync(stub, 0o755);
+
+      expect(await readNoMistakesGateStatus(fmHome, { command: stub })).toBeNull();
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null when stdout is empty (no run)", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      const stub = join(fmHome, "no-mistakes-stub.sh");
+      writeFileSync(stub, "#!/bin/sh\ntrue\n");
+      chmodSync(stub, 0o755);
+
+      expect(await readNoMistakesGateStatus(fmHome, { command: stub })).toBeNull();
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null instead of throwing when the binary doesn't exist", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      expect(await readNoMistakesGateStatus(fmHome, { command: "/no/such/binary-anywhere" })).toBeNull();
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null instead of throwing on timeout", async () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      const stub = join(fmHome, "no-mistakes-stub.sh");
+      writeFileSync(stub, "#!/bin/sh\nsleep 2\nprintf done\n");
+      chmodSync(stub, 0o755);
+
+      expect(await readNoMistakesGateStatus(fmHome, { command: stub, timeoutMs: 25 })).toBeNull();
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
   });
 });
 

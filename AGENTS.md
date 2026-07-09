@@ -12,13 +12,17 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 ## FM adapter + safety module
 
-`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar, plus Phase 4's watch-triage log) read-only; brief/report helpers are path-only for now. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
+`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar, plus Phase 4's watch-triage log) read-only; `taskDetail.ts` (Phase 3) composes those plus brief/report file reads and PR/merge-poll status (`state/<id>.check.sh`) into one task-detail snapshot, served at `GET /api/tasks/:id`. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. It also exports `readNoMistakesGateStatus`, a bounded, read-only call to `no-mistakes axi status` in a crew's worktree (the same non-mutating query `fm-crew-state.sh` already shells out to for every fleet task) - deliberately separate from the `bin/fm-*.sh` allowlist since `no-mistakes` is a different tool, not a firstmate script; its raw TOON output is decoded client-side with `@toon-format/toon` (`client/src/lib/decodeGateStatus.ts`) for the task-detail gate-findings panel. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
 
 `fm-crew-state.sh`'s `parked` state is ambiguous on its own: `source: run-step` means a no-mistakes gate is awaiting approval, while any other source means the log fallback mapped a manual `needs-decision:` status append to `parked` for display (see the reference script's `map_log_state()`). `server/src/adapter/decisions.ts` splits on `crewState.source` to recover those two distinct captain-facing categories for the decisions inbox.
 
 ## Hono + Bun websocket gotcha
 
 `hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`.
+
+## TanStack Query networkMode gotcha
+
+The `QueryClient` in `client/src/main.tsx` sets `networkMode: "always"`. This app is local-only (127.0.0.1); the browser's general online/offline detection has no bearing on whether the local FM Deck server is reachable, so the default `networkMode: "online"` would pause retries incorrectly (e.g. no wifi but localhost is still right there). Separately, and NOT something to "fix": TanStack Query also pauses retries when `document.visibilityState` is `"hidden"` (a backgrounded tab) regardless of `networkMode` - this is correct, intentional behavior, and is why a query stuck retrying in an automated/background browser tab can look permanently blank; it resolves once the tab is genuinely focused.
 
 ## Maintaining this file
 

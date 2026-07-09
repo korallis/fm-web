@@ -199,3 +199,35 @@ export interface FleetSnapshot {
   /** Read-only tail of `state/.watch-triage.log`. */
   watchTriage: WatchTriageEntry[];
 }
+
+/** `state/<id>.meta`'s `pr=`/`pr_head=` plus whether `fm-pr-check.sh` armed the merge poll. */
+export interface PrStatus {
+  url: string | null;
+  headSha: string | null;
+  /** `state/<id>.check.sh` exists — the watcher polls it for a merge/close signal. */
+  pollArmed: boolean;
+  /** PR URL parsed out of `check.sh`'s `gh pr view <url>` call, when armed. */
+  pollTargetUrl: string | null;
+}
+
+/**
+ * Full read-only detail for one task's detail page. `statusHistory` is the COMPLETE append-only
+ * `.status` log for display as history/wake-events only — `crewState` (from `fm-crew-state.sh`,
+ * never the raw log) remains the sole source of current-state truth; see the adapter's doc comment.
+ */
+export interface TaskDetail {
+  id: string;
+  meta: CrewMeta;
+  crewState: CrewStateOutput;
+  statusHistory: StatusEntry[];
+  brief: string | null;
+  report: string | null;
+  pr: PrStatus;
+  /**
+   * Raw TOON stdout of `no-mistakes axi status` in the task's worktree — the same non-mutating
+   * query `fm-crew-state.sh` already runs internally for every fleet task on every poll. Decode
+   * with `@toon-format/toon` client-side; null when there's no run, no worktree, or the call
+   * failed/timed out.
+   */
+  gateStatusRaw: string | null;
+}

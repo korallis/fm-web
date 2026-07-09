@@ -1,6 +1,12 @@
 import { join } from "node:path";
 
 /** Path helpers for a firstmate home. All reads are relative to `fmHome`; never hardcode a home. */
+export function isSafeTaskId(taskId: string): boolean {
+  return (
+    taskId.length > 0 && taskId !== "." && taskId !== ".." && !/[\\/]/.test(taskId) && !taskId.includes("\0")
+  );
+}
+
 export function stateDir(fmHome: string): string {
   return join(fmHome, "state");
 }
@@ -19,6 +25,11 @@ export function metaPath(fmHome: string, taskId: string): string {
 
 export function statusPath(fmHome: string, taskId: string): string {
   return join(stateDir(fmHome), `${taskId}.status`);
+}
+
+/** `fm-pr-check.sh`'s merge-poll script — its mere existence means the watcher is polling for merge/close. */
+export function checkScriptPath(fmHome: string, taskId: string): string {
+  return join(stateDir(fmHome), `${taskId}.check.sh`);
 }
 
 export function wakeQueuePath(fmHome: string): string {

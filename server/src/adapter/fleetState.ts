@@ -43,7 +43,7 @@ function isMissingPathError(error: unknown): boolean {
   return code === "ENOENT" || code === "ENOTDIR";
 }
 
-function readIfExists(path: string): string | null {
+export function readIfExists(path: string): string | null {
   try {
     return readFileSync(path, "utf8");
   } catch (error) {
@@ -61,7 +61,7 @@ function statIfExists(path: string): Stats | null {
   }
 }
 
-function isExistingDirectory(path: string): boolean {
+export function isExistingDirectory(path: string): boolean {
   return statIfExists(path)?.isDirectory() ?? false;
 }
 
@@ -81,7 +81,7 @@ function findBacklogRef(id: string, backlog: Backlog): BacklogTask | null {
   return backlog.inFlight.find((t) => t.id === id) ?? backlog.queued.find((t) => t.id === id) ?? null;
 }
 
-async function readCrewState(fmHome: string, id: string): Promise<CrewStateOutput> {
+export async function readCrewState(fmHome: string, id: string): Promise<CrewStateOutput> {
   try {
     const result = await runReadOnlyScript(fmHome, "fm-crew-state.sh", [id]);
     const stdoutLine = result.stdout.split(/\r?\n/).find((line) => line.trim() !== "");
