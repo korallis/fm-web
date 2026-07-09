@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
+import type { GuardedActionResult } from "@fm-web/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTaskInterrupt, useTaskSteer } from "../api/useTaskSend";
 import { taskPeekQueryKey } from "../api/useTaskPeek";
 
 const INTERRUPT_ARM_TIMEOUT_MS = 4000;
+
+function actionError(result: GuardedActionResult): string | undefined {
+  if (result.ok) return undefined;
+  const stderr = result.stderr.trim();
+  return result.error ?? (stderr === "" ? "Action failed" : stderr);
+}
 
 /** The unstick ladder's steer + interrupt rungs (peek is the live terminal above this). Both are
  * guarded actions against `fm-send.sh` targeting the crew's OWN session - never the app-owned
@@ -12,6 +19,7 @@ const INTERRUPT_ARM_TIMEOUT_MS = 4000;
 export function UnstickLadder({ homeId, taskId }: { homeId: string; taskId: string }) {
   const [steerText, setSteerText] = useState("");
   const [armed, setArmed] = useState(false);
+  const [lastError, setLastError] = useState<string | undefined>();
   const steer = useTaskSteer(homeId, taskId);
   const interrupt = useTaskInterrupt(homeId, taskId);
   const queryClient = useQueryClient();
@@ -30,6 +38,7 @@ export function UnstickLadder({ homeId, taskId }: { homeId: string; taskId: stri
     const text = steerText.trim();
     if (text === "" || steer.isPending) return;
     void steer.mutateAsync(text).then((result) => {
+      setLastError(actionError(result));
       if (result.ok) setSteerText("");
       refreshPeek();
     });
@@ -48,10 +57,11 @@ export function UnstickLadder({ homeId, taskId }: { homeId: string; taskId: stri
       return;
     }
     setArmed(false);
-    void interrupt.mutateAsync().then(refreshPeek);
+    void interrupt.mutateAsync().then((result) => {
+      setLastError(actionError(result));
+      refreshPeek();
+    });
   };
-
-  const lastError = steer.data?.ok === false ? (steer.data.error ?? steer.data.stderr) : undefined;
 
   return (
     <div className="flex flex-col gap-2 border border-factory-border bg-factory-panel p-3">

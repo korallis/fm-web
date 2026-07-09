@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { GuardedActionResult } from "@fm-web/shared";
 import { useAdvancedAudit, useAdvancedRun } from "../api/useAdvancedActions";
 import { useComposerSend } from "../api/useComposerSend";
 import { StateChip } from "./StateChip";
@@ -12,6 +13,11 @@ interface DrawerField {
 }
 
 type FieldValues = Record<string, string | boolean>;
+
+interface LastRun {
+  commandLine: string;
+  result: GuardedActionResult;
+}
 
 interface DrawerScriptSpec {
   script: string;
@@ -195,6 +201,7 @@ export function AdvancedDrawer() {
   const [scriptIndex, setScriptIndex] = useState(0);
   const [values, setValues] = useState<FieldValues>({});
   const [confirmText, setConfirmText] = useState("");
+  const [lastRun, setLastRun] = useState<LastRun | null>(null);
   const run = useAdvancedRun();
   const { data: audit } = useAdvancedAudit();
   const composerSend = useComposerSend();
@@ -206,6 +213,7 @@ export function AdvancedDrawer() {
     setScriptIndex(index);
     setValues({});
     setConfirmText("");
+    setLastRun(null);
     run.reset();
   };
 
@@ -224,12 +232,17 @@ export function AdvancedDrawer() {
 
   const runNow = (): void => {
     if (!canRun) return;
-    void run.mutateAsync({ script: spec.script, args });
+    const request = { script: spec.script, args: [...args] };
+    const executedCommandLine = [request.script, ...request.args].join(" ");
+    setLastRun(null);
+    void run.mutateAsync(request).then((result) => setLastRun({ commandLine: executedCommandLine, result }));
   };
 
   const sendFyi = (): void => {
-    if (run.data === undefined) return;
-    const text = `FYI: ran \`${commandLine}\` via the advanced drawer — ${run.data.ok ? "ok" : "failed"}.`;
+    if (lastRun === null) return;
+    const text = `FYI: ran \`${lastRun.commandLine}\` via the advanced drawer - ${
+      lastRun.result.ok ? "ok" : "failed"
+    }.`;
     void composerSend.mutateAsync(text);
   };
 
@@ -240,7 +253,7 @@ export function AdvancedDrawer() {
         onClick={() => setOpen((prev) => !prev)}
         className="flex items-center justify-between font-mono text-xs uppercase tracking-wide text-amber-400"
       >
-        <span>Advanced drawer — direct script execution</span>
+        <span>Advanced drawer - direct script execution</span>
         <span>{open ? "▾" : "▸"}</span>
       </button>
 
@@ -300,7 +313,7 @@ export function AdvancedDrawer() {
             >
               Run
             </button>
-            {run.data !== undefined && (
+            {lastRun !== null && (
               <button
                 type="button"
                 onClick={sendFyi}
@@ -312,20 +325,23 @@ export function AdvancedDrawer() {
             )}
           </div>
 
-          {run.data !== undefined && (
+          {lastRun !== null && (
             <div className="flex flex-col gap-1 border border-factory-border bg-factory-bg p-2">
-              <StateChip label={run.data.ok ? "ok" : "failed"} tone={run.data.ok ? "done" : "danger"} />
-              {run.data.error !== undefined && (
-                <p className="font-mono text-xs text-red-400">{run.data.error}</p>
+              <StateChip
+                label={lastRun.result.ok ? "ok" : "failed"}
+                tone={lastRun.result.ok ? "done" : "danger"}
+              />
+              {lastRun.result.error !== undefined && (
+                <p className="font-mono text-xs text-red-400">{lastRun.result.error}</p>
               )}
-              {run.data.stdout !== "" && (
+              {lastRun.result.stdout !== "" && (
                 <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-factory-text">
-                  {run.data.stdout}
+                  {lastRun.result.stdout}
                 </pre>
               )}
-              {run.data.stderr !== "" && (
+              {lastRun.result.stderr !== "" && (
                 <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-red-400">
-                  {run.data.stderr}
+                  {lastRun.result.stderr}
                 </pre>
               )}
             </div>

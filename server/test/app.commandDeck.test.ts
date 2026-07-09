@@ -155,7 +155,7 @@ describe("createApp with a command deck", () => {
   });
 });
 
-describe("GET /api/tasks/:id/peek — works without a configured command deck", () => {
+describe("GET /api/tasks/:id/peek - works without a configured command deck", () => {
   it("returns the read-only fm-peek.sh output", async () => {
     const app = createApp(FIXTURE_HOME);
     const res = await app.request("/api/tasks/task-a1/peek");
@@ -177,7 +177,7 @@ describe("GET /api/tasks/:id/peek — works without a configured command deck", 
   });
 });
 
-describe("POST /api/tasks/:id/send — crew steer, works without a configured command deck", () => {
+describe("POST /api/tasks/:id/send - crew steer, works without a configured command deck", () => {
   it("runs fm-send.sh against the resolved task target", async () => {
     const app = createApp(FIXTURE_HOME);
     const res = await app.request("/api/tasks/task-a1/send", {
@@ -216,7 +216,7 @@ describe("POST /api/tasks/:id/send — crew steer, works without a configured co
   });
 });
 
-describe("POST /api/tasks/:id/interrupt — crew unstick ladder", () => {
+describe("POST /api/tasks/:id/interrupt - crew unstick ladder", () => {
   it("sends the C-c special key via fm-send.sh", async () => {
     const app = createApp(FIXTURE_HOME);
     const res = await app.request("/api/tasks/task-a1/interrupt", { method: "POST" });
@@ -234,27 +234,40 @@ describe("advanced drawer routes", () => {
     expect((await app.request("/api/advanced/audit")).status).toBe(503);
   });
 
-  it("POST /api/advanced/run executes an allowlisted mutating script", async () => {
+  it("POST /api/advanced/run executes an advanced-drawer mutating script", async () => {
     const composerQueue = new ComposerQueue(makeDeps());
     const app = createApp(FIXTURE_HOME, { commandDeck: makeCommandDeck({ composerQueue }) });
     const res = await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-send.sh", args: ["task-a1", "hello"] }),
+      body: JSON.stringify({ script: "fm-watch-arm.sh", args: ["--restart"] }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; stdout: string };
     expect(body.ok).toBe(true);
-    expect(body.stdout).toContain("stub sent to task-a1: hello");
+    expect(body.stdout).toContain("stub watcher armed --restart");
   });
 
-  it("POST /api/advanced/run refuses a script that isn't an advanced-drawer script", async () => {
+  it("POST /api/advanced/run refuses scripts outside the advanced drawer scope", async () => {
     const composerQueue = new ComposerQueue(makeDeps());
     const app = createApp(FIXTURE_HOME, { commandDeck: makeCommandDeck({ composerQueue }) });
     const res = await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-session-start.sh", args: [] }),
+      body: JSON.stringify({ script: "fm-send.sh", args: ["task-a1", "hi"] }),
+    });
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.ok).toBe(false);
+    expect(body.error).toMatch(/not an advanced-drawer script/);
+  });
+
+  it("POST /api/advanced/run refuses fm-brief.sh even though it is mutating-allowlisted", async () => {
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(FIXTURE_HOME, { commandDeck: makeCommandDeck({ composerQueue }) });
+    const res = await app.request("/api/advanced/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ script: "fm-brief.sh", args: ["task-a1"] }),
     });
     const body = (await res.json()) as { ok: boolean; error?: string };
     expect(body.ok).toBe(false);
@@ -269,12 +282,19 @@ describe("advanced drawer routes", () => {
     const res = await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-send.sh", args: ["task-a1", "hi"] }),
+      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
     });
     expect(res.status).toBe(409);
+    const auditRes = await app.request("/api/advanced/audit");
+    const audit = (await auditRes.json()) as { entries: { script: string; ok: boolean; summary: string }[] };
+    expect(audit.entries[0]).toMatchObject({
+      script: "fm-watch-arm.sh",
+      ok: false,
+      summary: "read-only",
+    });
   });
 
-  it("POST /api/advanced/run does not degrade fm-review-diff.sh — read-only anytime per the safety contract", async () => {
+  it("POST /api/advanced/run does not degrade fm-review-diff.sh - read-only anytime per the safety contract", async () => {
     const composerQueue = new ComposerQueue(makeDeps());
     const app = createApp(FIXTURE_HOME, {
       commandDeck: makeCommandDeck({ composerQueue, isReadOnly: vi.fn().mockResolvedValue(true) }),
@@ -297,7 +317,7 @@ describe("advanced drawer routes", () => {
         host: "127.0.0.1:4173",
         origin: "http://evil.example",
       },
-      body: JSON.stringify({ script: "fm-send.sh", args: ["task-a1", "hi"] }),
+      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
     });
     expect(res.status).toBe(403);
   });
@@ -308,10 +328,10 @@ describe("advanced drawer routes", () => {
     await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-send.sh", args: ["task-a1", "hello"] }),
+      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
     });
     const res = await app.request("/api/advanced/audit");
     const body = (await res.json()) as { entries: { script: string }[] };
-    expect(body.entries[0]?.script).toBe("fm-send.sh");
+    expect(body.entries[0]?.script).toBe("fm-watch-arm.sh");
   });
 });

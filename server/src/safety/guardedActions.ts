@@ -26,6 +26,29 @@ export const ADVANCED_DRAWER_READONLY_SCRIPTS = [
   "fm-review-diff.sh",
 ] as const satisfies readonly ReadOnlyScript[];
 
+export const ADVANCED_DRAWER_MUTATING_SCRIPTS = [
+  "fm-spawn.sh",
+  "fm-teardown.sh",
+  "fm-pr-check.sh",
+  "fm-pr-merge.sh",
+  "fm-merge-local.sh",
+  "fm-promote.sh",
+  "fm-watch-arm.sh",
+] as const satisfies readonly MutatingScript[];
+
+export const ADVANCED_DRAWER_SCRIPTS = [
+  ...ADVANCED_DRAWER_MUTATING_SCRIPTS,
+  ...ADVANCED_DRAWER_READONLY_SCRIPTS,
+] as const;
+
+export function isAdvancedDrawerMutatingScript(script: string): script is MutatingScript {
+  return (ADVANCED_DRAWER_MUTATING_SCRIPTS as readonly string[]).includes(script);
+}
+
+export function isAdvancedDrawerScript(script: string): boolean {
+  return (ADVANCED_DRAWER_SCRIPTS as readonly string[]).includes(script);
+}
+
 /**
  * The one shape invariant every drawer/task-page caller must satisfy before a script ever spawns:
  * a valid task id where the script expects one. Per-script flag grammars (`--harness`, `--force`,
@@ -55,6 +78,15 @@ function summarize(result: { exitCode: number | null; stdout: string; stderr: st
     firstNonBlankLine(result.stderr) ??
     `exit ${result.exitCode ?? "unknown"}`
   );
+}
+
+export function recordGuardedActionDenial(
+  script: string,
+  args: readonly string[],
+  error: string,
+): GuardedActionResult {
+  recordAudit({ script, args, ok: false, summary: error });
+  return { ok: false, exitCode: null, stdout: "", stderr: "", error };
 }
 
 /**
@@ -89,7 +121,6 @@ export async function runGuardedAction(
     return outcome;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    recordAudit({ script, args, ok: false, summary: message });
-    return { ok: false, exitCode: null, stdout: "", stderr: "", error: message };
+    return recordGuardedActionDenial(script, args, message);
   }
 }

@@ -7,12 +7,14 @@ import { discoverHomes, resolveHomeId } from "./adapter/homes.js";
 import { discoverSkills } from "./adapter/skills.js";
 import type { ComposerQueue } from "./composer/queue.js";
 import { crossOriginResponse, isSameOriginRequest } from "./http/origin.js";
-import { MUTATING_SCRIPTS } from "./safety/allowlist.js";
-import { ADVANCED_DRAWER_READONLY_SCRIPTS, runGuardedAction } from "./safety/guardedActions.js";
+import {
+  isAdvancedDrawerMutatingScript,
+  isAdvancedDrawerScript,
+  recordGuardedActionDenial,
+  runGuardedAction,
+} from "./safety/guardedActions.js";
 import { listAudit } from "./safety/audit.js";
 import { runReadOnlyScript } from "./safety/scriptRunner.js";
-
-const ADVANCED_DRAWER_SCRIPTS: readonly string[] = [...MUTATING_SCRIPTS, ...ADVANCED_DRAWER_READONLY_SCRIPTS];
 
 export interface CommandDeckDeps {
   fmHome: string;
@@ -146,18 +148,11 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
     const request = extractGuardedActionRequest(await c.req.json().catch(() => null));
     if (request === null) return c.json({ error: "body must be { script: string, args: string[] }" }, 400);
-    if (!ADVANCED_DRAWER_SCRIPTS.includes(request.script)) {
-      return c.json({
-        ok: false,
-        exitCode: null,
-        stdout: "",
-        stderr: "",
-        error: "not an advanced-drawer script",
-      });
+    if (!isAdvancedDrawerScript(request.script)) {
+      return c.json(recordGuardedActionDenial(request.script, request.args, "not an advanced-drawer script"));
     }
-    const isMutating = (MUTATING_SCRIPTS as readonly string[]).includes(request.script);
-    if (isMutating && (await commandDeck.isReadOnly())) {
-      return c.json({ ok: false, exitCode: null, stdout: "", stderr: "", error: "read-only" }, 409);
+    if (isAdvancedDrawerMutatingScript(request.script) && (await commandDeck.isReadOnly())) {
+      return c.json(recordGuardedActionDenial(request.script, request.args, "read-only"), 409);
     }
     return c.json(await runGuardedAction(commandDeck.fmHome, request.script, request.args));
   });
