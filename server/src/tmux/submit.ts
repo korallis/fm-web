@@ -59,10 +59,11 @@ async function submitEnterCore(
   retries: number,
   enterSleepMs: number,
   composerIdleRegex: RegExp | undefined,
-): Promise<ComposerLineState | "unknown"> {
+): Promise<SubmitVerdict> {
   let attempt = 0;
   for (;;) {
-    await sendKey(target, "Enter");
+    const sent = await sendKey(target, "Enter");
+    if (!sent) return "send-failed";
     await sleep(enterSleepMs);
     const state = await readComposerState(target, composerIdleRegex);
     if (state !== "pending") return state;
@@ -91,6 +92,7 @@ export async function submitText(
   if (!sent) return "send-failed";
   await sleep(settleMs);
   const verdict = await submitEnterCore(target, retries, enterSleepMs, options.composerIdleRegex);
-  if (verdict !== "pending" && postSubmitSettleMs > 0) await sleep(postSubmitSettleMs);
+  if (verdict !== "pending" && verdict !== "send-failed" && postSubmitSettleMs > 0)
+    await sleep(postSubmitSettleMs);
   return verdict;
 }

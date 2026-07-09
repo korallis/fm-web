@@ -100,6 +100,12 @@ export class ComposerQueue {
         next.status = "sending";
         await this.emitState();
         await this.waitWhileBusy();
+        const blockedAfterWait = await this.blockReason();
+        if (blockedAfterWait !== null) {
+          this.failAllQueued(blockedAfterWait);
+          await this.emitState();
+          break;
+        }
         const verdict = await this.deps.submit(next.text);
         if (verdict === "empty" || verdict === "unknown") {
           next.status = "sent";

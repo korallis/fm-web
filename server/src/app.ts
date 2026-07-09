@@ -5,6 +5,7 @@ import { buildTaskDetail } from "./adapter/taskDetail.js";
 import { isSafeTaskId } from "./adapter/paths.js";
 import { discoverSkills } from "./adapter/skills.js";
 import type { ComposerQueue } from "./composer/queue.js";
+import { crossOriginResponse, isSameOriginRequest } from "./http/origin.js";
 
 export interface CommandDeckDeps {
   fmHome: string;
@@ -55,12 +56,16 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
   app.get("/api/skills", (c) => c.json(discoverSkills(commandDeck.fmHome)));
   app.get("/api/composer/state", async (c) => c.json(await commandDeck.composerQueue.buildState()));
   app.post("/api/composer/send", async (c) => {
+    if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
     const text = extractText(await c.req.json().catch(() => null));
     if (text === null) return c.json({ accepted: false, error: "body must be { text: string }" }, 400);
     const result = await commandDeck.composerQueue.enqueue(text);
     return c.json(result, result.accepted ? 200 : 409);
   });
-  app.post("/api/session/interrupt", async (c) => c.json({ sent: await commandDeck.interrupt() }));
+  app.post("/api/session/interrupt", async (c) => {
+    if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
+    return c.json({ sent: await commandDeck.interrupt() });
+  });
 
   return app;
 }

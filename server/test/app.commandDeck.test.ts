@@ -77,6 +77,42 @@ describe("createApp with a command deck", () => {
     expect(body.accepted).toBe(true);
   });
 
+  it("POST /api/composer/send allows a present same-origin Origin header", async () => {
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(FIXTURE_HOME, {
+      commandDeck: { fmHome: FIXTURE_HOME, composerQueue, interrupt: vi.fn().mockResolvedValue(true) },
+    });
+    const res = await app.request("/api/composer/send", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        host: "127.0.0.1:4173",
+        origin: "http://127.0.0.1:4173",
+      },
+      body: JSON.stringify({ text: "hello" }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("POST /api/composer/send rejects a cross-origin Origin header", async () => {
+    const deps = makeDeps();
+    const composerQueue = new ComposerQueue(deps);
+    const app = createApp(FIXTURE_HOME, {
+      commandDeck: { fmHome: FIXTURE_HOME, composerQueue, interrupt: vi.fn().mockResolvedValue(true) },
+    });
+    const res = await app.request("/api/composer/send", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        host: "127.0.0.1:4173",
+        origin: "http://evil.example",
+      },
+      body: JSON.stringify({ text: "hello" }),
+    });
+    expect(res.status).toBe(403);
+    expect(deps.submit).not.toHaveBeenCalled();
+  });
+
   it("POST /api/composer/send returns 409 when rejected (e.g. read-only)", async () => {
     const composerQueue = new ComposerQueue(makeDeps({ isReadOnly: vi.fn().mockResolvedValue(true) }));
     const app = createApp(FIXTURE_HOME, {

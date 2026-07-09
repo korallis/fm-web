@@ -39,7 +39,7 @@ export async function ensureFirstMateSession(
   const sessionName = sessionNameFor(fmHome);
   const target = `${sessionName}:${WINDOW_NAME}`;
   if (await hasSession(sessionName)) return { target, created: false };
-  await newSession({
+  const result = await newSession({
     sessionName,
     windowName: WINDOW_NAME,
     cwd: fmHome,
@@ -47,6 +47,10 @@ export async function ensureFirstMateSession(
     width: DEFAULT_WIDTH,
     height: DEFAULT_HEIGHT,
   });
+  if (result.code !== 0) {
+    const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.code ?? "unknown"}`;
+    throw new Error(`tmux new-session failed: ${detail}`);
+  }
   return { target, created: true };
 }
 

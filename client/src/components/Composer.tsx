@@ -35,9 +35,14 @@ export function Composer({ fmHome, composerState }: ComposerProps) {
   const submit = (text: string): void => {
     const trimmed = text.trim();
     if (trimmed === "" || disabled) return;
-    send.mutate(trimmed);
-    pushHistory(trimmed);
-    setHistoryIndex(null);
+    void send
+      .mutateAsync(trimmed)
+      .then((result) => {
+        if (!result.accepted) return;
+        pushHistory(trimmed);
+        setHistoryIndex(null);
+      })
+      .catch(() => undefined);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {

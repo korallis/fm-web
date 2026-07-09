@@ -14,6 +14,7 @@ import { ensureFirstMateSession, isLockHeldByOwnSession, isSessionBusy } from ".
 import { captureResyncSnapshot, ensurePaneStream, PaneTailer } from "./tmux/paneStream.js";
 import { submitText } from "./tmux/submit.js";
 import { sendKey } from "./tmux/tmuxClient.js";
+import { isSameOriginRequest } from "./http/origin.js";
 
 const fmHomeEnv = process.env["FM_HOME"];
 if (fmHomeEnv === undefined || fmHomeEnv === "") {
@@ -112,6 +113,11 @@ function broadcastSessionMessage(message: SessionWsMessage): void {
   const payload = JSON.stringify(message);
   for (const client of sessionClients) client.send(payload);
 }
+
+app.use("/ws/session", async (c, next) => {
+  if (!isSameOriginRequest(c.req.raw.headers)) return c.text("cross-origin requests are not allowed", 403);
+  return next();
+});
 
 app.get(
   "/ws/session",

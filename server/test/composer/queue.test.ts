@@ -77,6 +77,30 @@ describe("ComposerQueue busy-aware processing", () => {
     });
   });
 
+  it("re-checks read-only after waiting for a busy harness", async () => {
+    let busy = true;
+    let readOnly = false;
+    const deps = makeDeps({
+      isBusy: vi.fn(async () => busy),
+      isReadOnly: vi.fn(async () => readOnly),
+      submit: vi.fn().mockResolvedValue("empty"),
+    });
+    const queue = new ComposerQueue(deps);
+    const result = await queue.enqueue("hello");
+    await flush();
+    expect(queue.getEntries().find((e) => e.id === result.entryId)?.status).toBe("sending");
+
+    readOnly = true;
+    busy = false;
+
+    await vi.waitFor(() => {
+      const entry = queue.getEntries().find((e) => e.id === result.entryId);
+      expect(entry?.status).toBe("failed");
+      expect(entry?.detail).toMatch(/read-only/);
+    });
+    expect(deps.submit).not.toHaveBeenCalled();
+  });
+
   it("processes multiple queued prompts serially, in order", async () => {
     const order: string[] = [];
     const deps = makeDeps({
