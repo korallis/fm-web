@@ -232,22 +232,33 @@ export async function readNoMistakesGateStatus(
   }
 }
 
+export const DEFAULT_MUTATING_SCRIPT_TIMEOUT_MS = 90_000;
+
 /**
- * Mutating scripts are refused categorically. The allowlist exists so a future advanced drawer can
- * be wired by changing one deliberate gate instead of searching call sites.
+ * Run an allowlisted mutating firstmate script - the advanced drawer's one execution path. Same
+ * guardrails as `runReadOnlyScript` (never a `NEVER_RUN_SCRIPTS` entry, traversal-safe path
+ * resolution, timeout + output cap); callers are expected to have already validated `args` via
+ * `safety/guardedActions.ts` (e.g. the task id shape) before reaching here.
  */
-export function runMutatingScript(
-  _fmHome: string,
+export async function runMutatingScript(
+  fmHome: string,
   scriptName: MutatingScript,
-  _args: readonly string[] = [],
-): never {
+  args: readonly string[] = [],
+  limits: ScriptRunLimits = {},
+): Promise<ScriptResult> {
   if ((NEVER_RUN_SCRIPTS as readonly string[]).includes(scriptName)) {
     throw new ScriptGuardError(`refusing to ever run ${scriptName} from this app`);
   }
   if (!(MUTATING_SCRIPTS as readonly string[]).includes(scriptName)) {
     throw new ScriptGuardError(`${scriptName} is not on the mutating allowlist`);
   }
-  throw new ScriptGuardError(`mutating scripts are disabled in Phase 1 (refused: ${scriptName})`);
+  const resolved = resolveScriptPath(fmHome, scriptName);
+  return runSpawn(
+    resolved.scriptPath,
+    args,
+    { cwd: resolved.fmHome, env: buildScriptEnv(resolved.fmHome) },
+    normalizeScriptRunLimits({ timeoutMs: DEFAULT_MUTATING_SCRIPT_TIMEOUT_MS, ...limits }),
+  );
 }
 
 /** Explicit guard callers can check ad hoc, for names that may not even be typed as a script literal. */

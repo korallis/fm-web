@@ -1,10 +1,13 @@
 import { useTaskDetail } from "../api/useTaskDetail";
+import { useTaskPeek } from "../api/useTaskPeek";
 import { StateChip } from "./StateChip";
 import { toneForVerb } from "./chipTone";
 import { StatusTimeline } from "./StatusTimeline";
 import { BriefReport } from "./BriefReport";
 import { PrStatusCard } from "./PrStatusCard";
 import { GateFindingsPanel } from "./GateFindingsPanel";
+import { CrewPeekTerminal } from "./CrewPeekTerminal";
+import { UnstickLadder } from "./UnstickLadder";
 
 export function TaskDetailPage({
   homeId,
@@ -16,6 +19,7 @@ export function TaskDetailPage({
   onBack: () => void;
 }) {
   const { data: detail, isLoading, error } = useTaskDetail(homeId, taskId);
+  const { data: peek, error: peekError } = useTaskPeek(homeId, taskId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,6 +49,15 @@ export function TaskDetailPage({
               <span className="font-mono text-xs text-factory-dim">{detail.crewState.detail}</span>
             )}
           </header>
+
+          <section className="flex flex-col gap-2">
+            <h2 className="font-mono text-xs uppercase tracking-wide text-factory-dim">Live crew terminal</h2>
+            <CrewPeekTerminal text={peek?.text} />
+            {peekError !== null && peekError !== undefined && (
+              <p className="font-mono text-xs text-red-400">Live terminal failed: {peekError.message}</p>
+            )}
+            <UnstickLadder homeId={homeId} taskId={taskId} />
+          </section>
 
           <section>
             <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-factory-dim">

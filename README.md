@@ -7,17 +7,25 @@ views, a Cmd+K command palette, captain-relevant notifications, and a multi-home
 builds fleet and task snapshots from validated firstmate disk state, serves them over REST, and
 pushes refreshed snapshots over a WebSocket when `state/` or `data/` changes.
 
+The Command Deck is an app-owned tmux session running the first-mate harness, with a busy-aware
+verified-submit composer, an xterm.js response terminal streaming that session live, lock-aware
+read-only mode, and runtime-discovered skill quick-actions. Bridge adds decisions, task detail live
+crew terminals, an unstick ladder for crew sessions, and an explicitly marked advanced drawer for
+guarded firstmate script actions.
+
 - Runs on 127.0.0.1 only (local, not exposed).
 - Requires `FM_HOME`, set to an **absolute** path to a firstmate home (a relative path resolves
   differently depending on which workspace script starts the server - see Configuration).
 - Requires `tmux` for the Command Deck runtime and for the real-session server tests.
-- Reads firstmate home state read-only; Command Deck writes are limited to tmux operations
-  (send-keys/capture-pane/pipe-pane) against a tmux session it created itself plus an app-owned
-  pipe log under OS temp - never a firstmate script, never firstmate-tracked state.
-- Shows supervision health, decisions inbox, fleet tasks, backlog lanes, a wake feed split into
-  surfaced (escalated) vs. absorbed (benign, watcher-filtered) events, project-mode chips,
-  secondmates, X-mode relay links, and per-task detail (Bridge), plus the live composer/terminal
-  (Command Deck).
+- Reads firstmate home state defensively; mutating paths are limited to the verified-submit
+  composer, task-scoped crew steer/interrupt routes, and the explicitly marked advanced drawer.
+  Command Deck writes are limited to tmux operations (send-keys/capture-pane/pipe-pane) against a
+  tmux session it created itself plus an app-owned pipe log under OS temp - never a firstmate
+  script, never firstmate-tracked state.
+- Shows supervision health, decisions inbox with reply prefills, fleet tasks, backlog lanes, a wake
+  feed split into surfaced (escalated) vs. absorbed (benign, watcher-filtered) events, project-mode
+  chips, secondmates, X-mode relay links, and per-task detail (Bridge), plus the live
+  composer/terminal (Command Deck).
 - A home switcher lets the Bridge and task-detail views read any discovered firstmate home - the
   booted primary plus every registered secondmate home - while the Command Deck's app-owned
   session always stays bound to the booted primary home.
@@ -29,12 +37,14 @@ pushes refreshed snapshots over a WebSocket when `state/` or `data/` changes.
 - Fleet task cards open `?task=<id>` detail URLs within the selected home; the selected home itself
   is a browser-local preference, not part of the URL. Closing the detail view returns to the Bridge.
 - Task detail shows brief/report markdown, PR and merge-poll status, no-mistakes gate findings,
-  and a `.status` history timeline that is explicitly not current-state truth.
-- Does not yet include interactive reply actions or mutating advanced drawer actions planned for
-  later phases.
+  a live crew terminal from `fm-peek.sh`, an unstick ladder, and a `.status` history timeline that
+  is explicitly not current-state truth.
+- The advanced drawer exposes a narrow guarded script surface with typed forms, command preview,
+  typed confirmation, in-memory audit entries, and an optional FYI sent back through the normal
+  composer channel.
 
 Stack: Bun workspaces, Hono server (REST + WebSocket), Vite + React 19 + Tailwind 4 client,
-@xterm/xterm response terminal, strict TypeScript.
+@xterm/xterm response and crew terminals, strict TypeScript.
 
 ## Workspaces
 
@@ -42,7 +52,8 @@ Stack: Bun workspaces, Hono server (REST + WebSocket), Vite + React 19 + Tailwin
 - `server/` - Bun + Hono server, firstmate disk adapter, chokidar watcher, guarded script runner,
   the app-owned tmux session manager + verified-submit composer queue.
 - `client/` - Vite SPA: the Command Deck (composer + response terminal), Bridge dashboard, task
-  detail view, command palette, and notifications.
+  detail view with crew peek/unstick controls, decisions reply actions, advanced drawer, command
+  palette, and notifications.
 
 ## Run Locally
 
@@ -98,6 +109,16 @@ Composer drafts, prompt history, and the selected home id live in the browser's 
   for an unknown home id.
 - `GET /api/tasks/:id?home=<id>` returns a `TaskDetail` for one safe task id in the given home,
   `400` for an unsafe id or unknown home id, and `404` when `state/<id>.meta` does not exist.
+- `GET /api/tasks/:id/peek?home=<id>&lines=200` returns `{ text }` from `fm-peek.sh` for a safe
+  task id in the given home. `lines` defaults to `200` and is capped at `2000`; this route works
+  without a configured Command Deck because the script resolves the crew target from
+  `state/<id>.meta`.
+- `POST /api/tasks/:id/send?home=<id>` with `{ text }` sends a steer message to the crew's own
+  session via guarded `fm-send.sh`; it returns a `GuardedActionResult`, `409` when read-only, `400`
+  for bad ids, unknown homes, or malformed bodies, `403` for cross-origin requests, and works
+  without a configured Command Deck.
+- `POST /api/tasks/:id/interrupt?home=<id>` sends `C-c` to the crew's own session via guarded
+  `fm-send.sh`; it has the same safety and status behavior as `/api/tasks/:id/send`.
 - `GET /ws?home=<id>` upgrades to a WebSocket and sends a `FleetSnapshot` for that home on open
   and after debounced firstmate `state/` or `data/` changes; `400` for an unknown home id and `403`
   for cross-origin upgrades.
@@ -109,6 +130,13 @@ Composer drafts, prompt history, and the selected home id live in the browser's 
   malformed body, `403` for cross-origin requests.
 - `POST /api/session/interrupt` sends Ctrl-C to the app-owned session (a no-op returning
   `{ sent: false }` when read-only or unavailable, `403` for cross-origin requests).
+- `POST /api/advanced/run` with `{ script, args }` runs one advanced-drawer script through
+  `runGuardedAction` and returns a `GuardedActionResult`. It requires a configured Command Deck,
+  rejects cross-origin requests, accepts only the drawer's script set, and returns `409` when a
+  mutating script is blocked by read-only mode; read-only `fm-review-diff.sh` is exempt from that
+  lock check.
+- `GET /api/advanced/audit` returns `{ entries }` from the process-lifetime, in-memory advanced
+  action audit log, newest first. It requires a configured Command Deck.
 - `GET /ws/session` upgrades to a WebSocket streaming `SessionWsMessage`s: an initial `snapshot` of
   the visible pane, live `chunk`s of new pane output, and `composerState` updates. Cross-origin
   upgrades are rejected with `403`. Always bound to the booted primary home's Command Deck session.
@@ -116,16 +144,24 @@ Composer drafts, prompt history, and the selected home id live in the browser's 
 ## Safety
 
 The adapter reads firstmate files defensively and does not write to `FM_HOME`. The guarded runner
-allows only read-only scripts (`fm-peek.sh`, `fm-crew-state.sh`, `fm-project-mode.sh`,
-`fm-review-diff.sh`, and `fm-lock.sh status`). Task detail may also run bounded, read-only
-`no-mistakes axi status` in a ship task's existing worktree, separate from the firstmate script
-allowlist, to display raw gate status. All mutating scripts are refused categorically;
-`fm-session-start.sh`, `fm-wake-drain.sh`, and bare or acquire-style `fm-lock.sh` calls are
-always refused. The Command Deck's composer never calls any firstmate script at all - it drives its own
-app-owned tmux session directly (send-keys/capture-pane/pipe-pane), the same way a human typing in
-a terminal would, and degrades to read-only whenever `state/.lock` is held by a live session other
-than its own. The home switcher only ever selects among homes discovered read-only from the
-booted primary plus `data/secondmates.md` - never an arbitrary filesystem path.
+allows read-only scripts (`fm-peek.sh`, `fm-crew-state.sh`, `fm-project-mode.sh`,
+`fm-review-diff.sh`, and `fm-lock.sh status`) plus a mutating allowlist that is reachable only
+through guarded actions. Task detail may also run bounded, read-only `no-mistakes axi status` in a
+ship task's existing worktree, separate from the firstmate script allowlist, to display raw gate
+status. `fm-session-start.sh`, `fm-wake-drain.sh`, and bare or acquire-style `fm-lock.sh` calls are
+always refused.
+
+The task unstick ladder uses `fm-peek.sh` and guarded `fm-send.sh` against a crew's own session,
+resolved by firstmate from `state/<id>.meta`, and does not depend on the app-owned Command Deck
+session. The advanced drawer exposes `fm-spawn.sh`, `fm-teardown.sh`, `fm-pr-check.sh`,
+`fm-pr-merge.sh`, `fm-merge-local.sh`, `fm-promote.sh`, and read-only `fm-review-diff.sh`; it
+deliberately does not expose `fm-brief.sh` or `fm-watch-arm.sh`. Every guarded action validates
+argv shape, records a capped in-memory audit entry, and avoids shell interpolation. The Command
+Deck's composer never calls any firstmate script at all - it drives its own app-owned tmux session
+directly (send-keys/capture-pane/pipe-pane), the same way a human typing in a terminal would, and
+degrades to read-only whenever `state/.lock` is held by a live session other than its own. The home
+switcher only ever selects among homes discovered read-only from the booted primary plus
+`data/secondmates.md` - never an arbitrary filesystem path.
 
 ## Validation
 

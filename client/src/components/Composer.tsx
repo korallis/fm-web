@@ -3,7 +3,7 @@ import type { KeyboardEvent } from "react";
 import type { ComposerState, SkillEntry } from "@fm-web/shared";
 import { StateChip, type ChipTone } from "./StateChip";
 import { SkillQuickActions } from "./SkillQuickActions";
-import { useComposerLocalState } from "../composer/useComposerLocalState";
+import type { ComposerLocalState } from "../composer/useComposerLocalState";
 import { useComposerSend, interruptSession } from "../api/useComposerSend";
 import { useSkills } from "../api/useSkills";
 
@@ -17,11 +17,13 @@ const QUEUE_STATUS_TONE: Record<string, ChipTone> = {
 export interface ComposerProps {
   fmHome: string | undefined;
   composerState: ComposerState | undefined;
+  /** Lifted up to the Bridge level so decisions-inbox reply buttons can prefill the same draft. */
+  composerLocalState: ComposerLocalState;
 }
 
 /** The one busy-aware, verified-submit channel every instruction path converges on. */
-export function Composer({ fmHome, composerState }: ComposerProps) {
-  const { draft, setDraft, history, pushHistory } = useComposerLocalState(fmHome);
+export function Composer({ fmHome, composerState, composerLocalState }: ComposerProps) {
+  const { draft, setDraft, history, pushHistory } = composerLocalState;
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const send = useComposerSend();
   const { data: skills } = useSkills();

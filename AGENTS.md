@@ -16,6 +16,23 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 `fm-crew-state.sh`'s `parked` state is ambiguous on its own: `source: run-step` means a no-mistakes gate is awaiting approval, while any other source means the log fallback mapped a manual `needs-decision:` status append to `parked` for display (see the reference script's `map_log_state()`). `server/src/adapter/decisions.ts` splits on `crewState.source` to recover those two distinct captain-facing categories for the decisions inbox.
 
+## Guarded actions (advanced drawer + crew unstick ladder)
+
+`safety/scriptRunner.ts`'s `runMutatingScript` actually executes now (the Phase 1 hard refusal is
+gone); `safety/guardedActions.ts`'s `runGuardedAction` is the one entry point both the advanced
+drawer and the task-detail unstick ladder call - it validates the task-id shape
+(`TASK_ID_FIRST_ARG_SCRIPTS`), dispatches to the read-only or mutating runner depending on which
+allowlist the script is on, and always records to `safety/audit.ts` (in-memory, capped at 200, lost
+on restart - no app-owned data dir exists and firstmate's own dirs are off-limits to write, so this
+is deliberate, not a gap). `GET/POST /api/tasks/:id/{peek,send,interrupt}` (`app.ts`) work without a
+configured command deck - `fm-peek.sh`/`fm-send.sh` resolve their own target from
+`state/<id>.meta`, independent of the app-owned tmux session; only `POST /api/advanced/run` needs
+`commandDeck` (its read-only-lock gate exempts `fm-review-diff.sh`, which runs anytime per the
+safety contract). `client/src/components/AdvancedDrawer.tsx` deliberately excludes `fm-brief.sh` -
+authoring a brief needs real content, not just flags. It also excludes `fm-watch-arm.sh`: the real
+script blocks for the watcher's lifetime on success, which is incompatible with the synchronous
+guarded-action runner's timeout-and-kill model.
+
 ## Hono + Bun websocket gotcha
 
 `hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`. Applies to both `/ws` and `/ws/session`; both upgrade paths are same-origin guarded.

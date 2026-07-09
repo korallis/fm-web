@@ -3,9 +3,9 @@ import type { SubmitVerdict } from "../tmux/submit.js";
 
 /**
  * Busy-aware verified-submit send queue for the app-owned first-mate session: every instruction
- * path (free-form composer, skill quick-actions, future inbox/task-card actions) converges on
- * `enqueue`, which serializes sends, waits out a busy harness instead of interleaving keystrokes
- * mid-turn, and refuses to send at all while another live session holds the lock.
+ * path for the app-owned session (free-form composer, skill quick-actions, decisions replies)
+ * converges on `enqueue`, which serializes sends, waits out a busy harness instead of interleaving
+ * keystrokes mid-turn, and refuses to send at all while another live session holds the lock.
  */
 
 export interface ComposerQueueDeps {
