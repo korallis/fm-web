@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { TimingConstants } from "@fm-web/shared";
 import { buildFleetSnapshot } from "./adapter/fleetState.js";
 import { buildTaskDetail } from "./adapter/taskDetail.js";
+import { isSafeTaskId } from "./adapter/paths.js";
 
 export interface SnapshotOptions {
   timing?: TimingConstants;
@@ -17,7 +18,9 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     c.json(await buildFleetSnapshot(fmHome, Date.now(), options.timing, options.captainRegex)),
   );
   app.get("/api/tasks/:id", async (c) => {
-    const detail = await buildTaskDetail(fmHome, c.req.param("id"));
+    const id = c.req.param("id");
+    if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
+    const detail = await buildTaskDetail(fmHome, id);
     if (detail === null) return c.json({ error: "task not found" }, 404);
     return c.json(detail);
   });

@@ -1,6 +1,10 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import type { TaskDetail } from "@fm-web/shared";
 
+export function taskDetailQueryKey(id: string): readonly ["task", string] {
+  return ["task", id] as const;
+}
+
 async function fetchTaskDetail(id: string): Promise<TaskDetail> {
   const res = await fetch(`/api/tasks/${encodeURIComponent(id)}`);
   if (!res.ok) throw new Error(`GET /api/tasks/${id} failed: ${res.status}`);
@@ -9,7 +13,7 @@ async function fetchTaskDetail(id: string): Promise<TaskDetail> {
 
 export function useTaskDetail(id: string): UseQueryResult<TaskDetail, Error> {
   return useQuery({
-    queryKey: ["task", id],
+    queryKey: taskDetailQueryKey(id),
     queryFn: () => fetchTaskDetail(id),
   });
 }

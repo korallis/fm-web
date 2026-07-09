@@ -1,6 +1,12 @@
 import { join } from "node:path";
 
 /** Path helpers for a firstmate home. All reads are relative to `fmHome`; never hardcode a home. */
+export function isSafeTaskId(taskId: string): boolean {
+  return (
+    taskId.length > 0 && taskId !== "." && taskId !== ".." && !/[\\/]/.test(taskId) && !taskId.includes("\0")
+  );
+}
+
 export function stateDir(fmHome: string): string {
   return join(fmHome, "state");
 }

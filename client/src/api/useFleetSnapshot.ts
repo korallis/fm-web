@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FleetSnapshot } from "@fm-web/shared";
+import { taskDetailQueryKey } from "./useTaskDetail";
 
 const FLEET_QUERY_KEY = ["fleet"] as const;
 const INITIAL_RECONNECT_DELAY_MS = 1000;
@@ -27,8 +28,9 @@ export interface FleetSnapshotState {
 }
 
 /** Initial fetch via TanStack Query; every chokidar-triggered WS push replaces the cached snapshot. */
-export function useFleetSnapshot(): FleetSnapshotState {
+export function useFleetSnapshot(activeTaskId: string | null = null): FleetSnapshotState {
   const queryClient = useQueryClient();
+  const activeTaskIdRef = useRef(activeTaskId);
   const [wsConnected, setWsConnected] = useState(false);
   const query = useQuery({
     queryKey: FLEET_QUERY_KEY,
@@ -38,12 +40,21 @@ export function useFleetSnapshot(): FleetSnapshotState {
   });
 
   useEffect(() => {
+    activeTaskIdRef.current = activeTaskId;
+  }, [activeTaskId]);
+
+  useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/ws`;
     let ws: WebSocket | undefined;
     let reconnectTimer: number | undefined;
     let reconnectAttempt = 0;
     let stopped = false;
+
+    const invalidateActiveTask = () => {
+      const id = activeTaskIdRef.current;
+      if (id !== null) void queryClient.invalidateQueries({ queryKey: taskDetailQueryKey(id) });
+    };
 
     const connect = () => {
       const socket = new WebSocket(url);
@@ -57,6 +68,7 @@ export function useFleetSnapshot(): FleetSnapshotState {
         reconnectAttempt = 0;
         setWsConnected(true);
         void queryClient.invalidateQueries({ queryKey: FLEET_QUERY_KEY });
+        invalidateActiveTask();
       });
       socket.addEventListener("close", () => {
         if (stopped) return;
@@ -75,6 +87,7 @@ export function useFleetSnapshot(): FleetSnapshotState {
           queryClient.setQueryData<FleetSnapshot>(FLEET_QUERY_KEY, (current) =>
             preferNewestSnapshot(current, data),
           );
+          invalidateActiveTask();
         } catch {
           // ignore malformed frames
         }

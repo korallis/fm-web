@@ -39,4 +39,14 @@ describe("createApp", () => {
 
     expect(response.status).toBe(404);
   });
+
+  it("400s task detail ids that are not a single safe path segment", async () => {
+    const app = createApp(FIXTURE_HOME);
+
+    const slashResponse = await app.request("/api/tasks/..%2Ftask-b2");
+    const backslashResponse = await app.request("/api/tasks/task%5Cb2");
+
+    expect(slashResponse.status).toBe(400);
+    expect(backslashResponse.status).toBe(400);
+  });
 });

@@ -12,6 +12,11 @@ describe("buildTaskDetail", () => {
     expect(await buildTaskDetail(FIXTURE_HOME, "no-such-task")).toBeNull();
   });
 
+  it("returns null for task ids that are not a single safe path segment", async () => {
+    expect(await buildTaskDetail(FIXTURE_HOME, "../task-b2")).toBeNull();
+    expect(await buildTaskDetail(FIXTURE_HOME, "..")).toBeNull();
+  });
+
   it("reads meta, full status history, brief/report and an unarmed PR status from fixtures", async () => {
     const detail = await buildTaskDetail(FIXTURE_HOME, "task-b2");
     expect(detail).not.toBeNull();

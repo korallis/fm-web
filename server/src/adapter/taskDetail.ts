@@ -1,5 +1,5 @@
 import type { PrStatus, StatusEntry, TaskDetail } from "@fm-web/shared";
-import { briefPath, checkScriptPath, metaPath, reportPath, statusPath } from "./paths.js";
+import { briefPath, checkScriptPath, isSafeTaskId, metaPath, reportPath, statusPath } from "./paths.js";
 import { parseMeta } from "./meta.js";
 import { parseStatusLog } from "./status.js";
 import { readCrewState, readIfExists, isExistingDirectory } from "./fleetState.js";
@@ -31,6 +31,8 @@ function buildPrStatus(
  * `state/<id>.meta` (unknown task id).
  */
 export async function buildTaskDetail(fmHome: string, id: string): Promise<TaskDetail | null> {
+  if (!isSafeTaskId(id)) return null;
+
   const metaContent = readIfExists(metaPath(fmHome, id));
   if (metaContent === null) return null;
   const meta = parseMeta(metaContent);

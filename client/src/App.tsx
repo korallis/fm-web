@@ -1,4 +1,4 @@
-import { useFleetSnapshot } from "./api/useFleetSnapshot";
+import { useFleetSnapshot, type FleetSnapshotState } from "./api/useFleetSnapshot";
 import { FleetGrid } from "./components/FleetGrid";
 import { BacklogLanes } from "./components/BacklogLanes";
 import { SupervisionHealthStrip } from "./components/SupervisionHealthStrip";
@@ -8,8 +8,8 @@ import { WakeFeed } from "./components/WakeFeed";
 import { TaskDetailPage } from "./components/TaskDetailPage";
 import { useTaskRoute } from "./routing/useTaskRoute";
 
-function Bridge({ onOpenTask }: { onOpenTask: (id: string) => void }) {
-  const { snapshot, isLoading, error, wsConnected } = useFleetSnapshot();
+function Bridge({ fleet, onOpenTask }: { fleet: FleetSnapshotState; onOpenTask: (id: string) => void }) {
+  const { snapshot, isLoading, error, wsConnected } = fleet;
 
   return (
     <>
@@ -66,13 +66,14 @@ function Bridge({ onOpenTask }: { onOpenTask: (id: string) => void }) {
 
 export function App() {
   const { taskId, openTask, closeTask } = useTaskRoute();
+  const fleet = useFleetSnapshot(taskId);
 
   return (
     <div className="min-h-screen bg-factory-bg px-4 py-6 text-factory-text">
       {taskId !== null ? (
         <TaskDetailPage taskId={taskId} onBack={closeTask} />
       ) : (
-        <Bridge onOpenTask={openTask} />
+        <Bridge fleet={fleet} onOpenTask={openTask} />
       )}
     </div>
   );
