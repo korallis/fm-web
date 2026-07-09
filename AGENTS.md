@@ -29,7 +29,9 @@ configured command deck - `fm-peek.sh`/`fm-send.sh` resolve their own target fro
 `state/<id>.meta`, independent of the app-owned tmux session; only `POST /api/advanced/run` needs
 `commandDeck` (its read-only-lock gate exempts `fm-review-diff.sh`, which runs anytime per the
 safety contract). `client/src/components/AdvancedDrawer.tsx` deliberately excludes `fm-brief.sh` -
-authoring a brief needs real content, not just flags.
+authoring a brief needs real content, not just flags. It also excludes `fm-watch-arm.sh`: the real
+script blocks for the watcher's lifetime on success, which is incompatible with the synchronous
+guarded-action runner's timeout-and-kill model.
 
 ## Hono + Bun websocket gotcha
 

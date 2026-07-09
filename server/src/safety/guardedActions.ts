@@ -1,6 +1,5 @@
 import type { GuardedActionResult } from "@fm-web/shared";
 import { isSafeTaskId } from "../adapter/paths.js";
-import { MUTATING_SCRIPTS } from "./allowlist.js";
 import type { MutatingScript, ReadOnlyScript } from "./allowlist.js";
 import { recordAudit } from "./audit.js";
 import { runMutatingScript, runReadOnlyScript } from "./scriptRunner.js";
@@ -33,7 +32,6 @@ export const ADVANCED_DRAWER_MUTATING_SCRIPTS = [
   "fm-pr-merge.sh",
   "fm-merge-local.sh",
   "fm-promote.sh",
-  "fm-watch-arm.sh",
 ] as const satisfies readonly MutatingScript[];
 
 export const ADVANCED_DRAWER_SCRIPTS = [
@@ -41,12 +39,21 @@ export const ADVANCED_DRAWER_SCRIPTS = [
   ...ADVANCED_DRAWER_READONLY_SCRIPTS,
 ] as const;
 
+const GUARDED_MUTATING_SCRIPTS = [
+  "fm-send.sh",
+  ...ADVANCED_DRAWER_MUTATING_SCRIPTS,
+] as const satisfies readonly MutatingScript[];
+
 export function isAdvancedDrawerMutatingScript(script: string): script is MutatingScript {
   return (ADVANCED_DRAWER_MUTATING_SCRIPTS as readonly string[]).includes(script);
 }
 
 export function isAdvancedDrawerScript(script: string): boolean {
   return (ADVANCED_DRAWER_SCRIPTS as readonly string[]).includes(script);
+}
+
+function isGuardedMutatingScript(script: string): script is MutatingScript {
+  return (GUARDED_MUTATING_SCRIPTS as readonly string[]).includes(script);
 }
 
 /**
@@ -105,7 +112,7 @@ export async function runGuardedAction(
     if ((ADVANCED_DRAWER_READONLY_SCRIPTS as readonly string[]).includes(script)) {
       validateGuardedArgs(script as ReadOnlyScript, args);
       result = await runReadOnlyScript(fmHome, script as ReadOnlyScript, args);
-    } else if ((MUTATING_SCRIPTS as readonly string[]).includes(script)) {
+    } else if (isGuardedMutatingScript(script)) {
       validateGuardedArgs(script as MutatingScript, args);
       result = await runMutatingScript(fmHome, script as MutatingScript, args);
     } else {

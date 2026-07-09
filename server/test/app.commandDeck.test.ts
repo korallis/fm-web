@@ -262,12 +262,12 @@ describe("advanced drawer routes", () => {
     const res = await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-watch-arm.sh", args: ["--restart"] }),
+      body: JSON.stringify({ script: "fm-promote.sh", args: ["task-a1"] }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; stdout: string };
     expect(body.ok).toBe(true);
-    expect(body.stdout).toContain("stub watcher armed --restart");
+    expect(body.stdout).toContain("stub promoted task-a1");
   });
 
   it("POST /api/advanced/run refuses scripts outside the advanced drawer scope", async () => {
@@ -296,6 +296,19 @@ describe("advanced drawer routes", () => {
     expect(body.error).toMatch(/not an advanced-drawer script/);
   });
 
+  it("POST /api/advanced/run refuses fm-watch-arm.sh even though it is mutating-allowlisted", async () => {
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(FIXTURE_HOME, { commandDeck: makeCommandDeck({ composerQueue }) });
+    const res = await app.request("/api/advanced/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
+    });
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.ok).toBe(false);
+    expect(body.error).toMatch(/not an advanced-drawer script/);
+  });
+
   it("POST /api/advanced/run degrades to read-only when another session holds the lock", async () => {
     const composerQueue = new ComposerQueue(makeDeps());
     const app = createApp(FIXTURE_HOME, {
@@ -304,13 +317,13 @@ describe("advanced drawer routes", () => {
     const res = await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
+      body: JSON.stringify({ script: "fm-promote.sh", args: ["task-a1"] }),
     });
     expect(res.status).toBe(409);
     const auditRes = await app.request("/api/advanced/audit");
     const audit = (await auditRes.json()) as { entries: { script: string; ok: boolean; summary: string }[] };
     expect(audit.entries[0]).toMatchObject({
-      script: "fm-watch-arm.sh",
+      script: "fm-promote.sh",
       ok: false,
       summary: "read-only",
     });
@@ -339,7 +352,7 @@ describe("advanced drawer routes", () => {
         host: "127.0.0.1:4173",
         origin: "http://evil.example",
       },
-      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
+      body: JSON.stringify({ script: "fm-promote.sh", args: ["task-a1"] }),
     });
     expect(res.status).toBe(403);
   });
@@ -350,10 +363,10 @@ describe("advanced drawer routes", () => {
     await app.request("/api/advanced/run", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ script: "fm-watch-arm.sh", args: [] }),
+      body: JSON.stringify({ script: "fm-promote.sh", args: ["task-a1"] }),
     });
     const res = await app.request("/api/advanced/audit");
     const body = (await res.json()) as { entries: { script: string }[] };
-    expect(body.entries[0]?.script).toBe("fm-watch-arm.sh");
+    expect(body.entries[0]?.script).toBe("fm-promote.sh");
   });
 });

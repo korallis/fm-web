@@ -28,9 +28,8 @@ describe("validateGuardedArgs", () => {
     expect(() => validateGuardedArgs("fm-teardown.sh", ["../escape"])).toThrow(GuardedActionError);
   });
 
-  it("does not require a task id for fm-watch-arm.sh (a global script)", () => {
+  it("does not require a task id for scripts without a task-id first argument", () => {
     expect(() => validateGuardedArgs("fm-watch-arm.sh", ["--restart"])).not.toThrow();
-    expect(() => validateGuardedArgs("fm-watch-arm.sh", [])).not.toThrow();
   });
 });
 
@@ -74,6 +73,12 @@ describe("runGuardedAction", () => {
 
   it("refuses fm-session-start.sh - never on either advanced-drawer allowlist", async () => {
     const result = await runGuardedAction(FIXTURE_HOME, "fm-session-start.sh", []);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/not an advanced-drawer script/);
+  });
+
+  it("refuses fm-watch-arm.sh from the synchronous guarded-action entry point", async () => {
+    const result = await runGuardedAction(FIXTURE_HOME, "fm-watch-arm.sh", []);
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/not an advanced-drawer script/);
   });

@@ -39,11 +39,7 @@ function flagIf(values: FieldValues, key: string, flag: string): string[] {
   return values[key] === true ? [flag] : [];
 }
 
-/**
- * One entry per script on `MUTATING_SCRIPTS` plus the read-only `fm-review-diff.sh` - see
- * `server/src/safety/allowlist.ts`. `fm-brief.sh` is deliberately not surfaced here: authoring a
- * brief needs real content, not just flags, and isn't named in the integration task's scope.
- */
+/** Typed specs for synchronous advanced actions surfaced in the drawer. */
 const DRAWER_SCRIPTS: readonly DrawerScriptSpec[] = [
   {
     script: "fm-spawn.sh",
@@ -127,12 +123,6 @@ const DRAWER_SCRIPTS: readonly DrawerScriptSpec[] = [
     confirmKey: "taskId",
     fields: [{ key: "taskId", label: "Task id", kind: "text", required: true, placeholder: "task-a1" }],
     buildArgs: (v) => [textOf(v, "taskId")],
-  },
-  {
-    script: "fm-watch-arm.sh",
-    label: "Arm watcher",
-    fields: [{ key: "restart", label: "--restart (force-restart the watcher)", kind: "checkbox" }],
-    buildArgs: (v) => flagIf(v, "restart", "--restart"),
   },
   {
     script: "fm-review-diff.sh",
