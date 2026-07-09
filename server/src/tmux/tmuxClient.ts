@@ -12,6 +12,9 @@ export interface TmuxResult {
   stderr: string;
 }
 
+const BRACKETED_PASTE_START = "\x1b[200~";
+const BRACKETED_PASTE_END = "\x1b[201~";
+
 function runTmux(args: readonly string[]): Promise<TmuxResult> {
   return new Promise((resolvePromise) => {
     execFile("tmux", args as string[], { encoding: "utf8" }, (error, stdout, stderr) => {
@@ -44,7 +47,8 @@ export async function newSession(options: NewSessionOptions): Promise<TmuxResult
 }
 
 export async function sendLiteral(target: string, text: string): Promise<boolean> {
-  const result = await runTmux(["send-keys", "-t", target, "-l", "--", text]);
+  const payload = /[\r\n]/.test(text) ? `${BRACKETED_PASTE_START}${text}${BRACKETED_PASTE_END}` : text;
+  const result = await runTmux(["send-keys", "-t", target, "-l", "--", payload]);
   return result.code === 0;
 }
 

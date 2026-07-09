@@ -31,6 +31,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+function harnessCommandName(harness?: string): string | undefined {
+  const firstToken = harness?.trim().split(/\s+/, 1)[0];
+  return firstToken?.split(/[\\/]/).pop();
+}
+
 /** Reads and classifies the composer/cursor line; "unknown" when the pane can't be read at all. */
 export async function readComposerState(
   target: string,
@@ -50,7 +55,7 @@ export async function readComposerState(
  */
 export function selectSettleMs(text: string, harness?: string): number {
   if (text.startsWith("/")) return SLASH_COMMAND_SETTLE_MS;
-  if (text.startsWith("$") && harness === "codex") return CODEX_SKILL_SETTLE_MS;
+  if (text.startsWith("$") && harnessCommandName(harness) === "codex") return CODEX_SKILL_SETTLE_MS;
   return DEFAULT_SETTLE_MS;
 }
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { join } from "node:path";
-import { hasSession, killSession, newSession } from "../../src/tmux/tmuxClient.js";
+import { capturePaneTail, hasSession, killSession, newSession } from "../../src/tmux/tmuxClient.js";
 import { readComposerState, selectSettleMs, submitText } from "../../src/tmux/submit.js";
 
 const FIXTURE = join(import.meta.dirname, "..", "fixtures", "fake-composer.mjs");
@@ -36,6 +36,19 @@ describe("submitText (real tmux, fake composer harness)", () => {
     expect(verdict).toBe("empty");
     const state = await readComposerState(target);
     expect(state).toBe("empty");
+  });
+
+  it("submits multiline prompts as one bracketed paste entry", async () => {
+    const target = await startFakeComposer(1);
+    const verdict = await submitText(target, "hello\nworld", {
+      retries: 5,
+      enterSleepMs: 200,
+      postSubmitSettleMs: 0,
+    });
+    expect(verdict).toBe("empty");
+    const tail = await capturePaneTail(target, 10);
+    const submitted = tail?.split(/\r?\n/).filter((line) => line.startsWith("submitted:"));
+    expect(submitted).toEqual(["submitted:hello\\nworld"]);
   });
 
   it("retries Enter (never retyping) until a swallow clears on a later attempt", async () => {
@@ -76,6 +89,11 @@ describe("selectSettleMs", () => {
 
   it("gives codex $<skill> invocations the longer settle", () => {
     expect(selectSettleMs("$deploy", "codex")).toBe(1200);
+  });
+
+  it("normalizes codex harness commands before selecting settle", () => {
+    expect(selectSettleMs("$deploy", "codex --model gpt-5")).toBe(1200);
+    expect(selectSettleMs("$deploy", "/usr/local/bin/codex")).toBe(1200);
   });
 
   it("does not extend $ settle for non-codex harnesses", () => {
