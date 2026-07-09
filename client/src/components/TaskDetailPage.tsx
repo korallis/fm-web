@@ -19,7 +19,7 @@ export function TaskDetailPage({
   onBack: () => void;
 }) {
   const { data: detail, isLoading, error } = useTaskDetail(homeId, taskId);
-  const { data: peek } = useTaskPeek(homeId, taskId);
+  const { data: peek, error: peekError } = useTaskPeek(homeId, taskId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +53,9 @@ export function TaskDetailPage({
           <section className="flex flex-col gap-2">
             <h2 className="font-mono text-xs uppercase tracking-wide text-factory-dim">Live crew terminal</h2>
             <CrewPeekTerminal text={peek?.text} />
+            {peekError !== null && peekError !== undefined && (
+              <p className="font-mono text-xs text-red-400">Live terminal failed: {peekError.message}</p>
+            )}
             <UnstickLadder homeId={homeId} taskId={taskId} />
           </section>
 

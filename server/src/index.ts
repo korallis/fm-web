@@ -46,6 +46,13 @@ async function isReadOnly(): Promise<boolean> {
   return !(await isLockHeldByOwnSession(deck.target, lock.pid));
 }
 
+async function isCrewMutationReadOnly(): Promise<boolean> {
+  const lock = readLockInfo(fmHome);
+  if (lock.pid === null || lock.alive !== true) return false;
+  if (deck.target === null) return true;
+  return !(await isLockHeldByOwnSession(deck.target, lock.pid));
+}
+
 const composerQueue = new ComposerQueue({
   submit: async (text) => {
     if (deck.target === null) throw new Error("first-mate session unavailable");
@@ -69,6 +76,7 @@ const app = createApp(fmHome, {
       return sendKey(deck.target, "C-c");
     },
     isReadOnly,
+    isCrewMutationReadOnly,
   },
 });
 

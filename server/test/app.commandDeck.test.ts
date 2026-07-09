@@ -267,7 +267,11 @@ describe("POST /api/tasks/:id/send - crew steer, works without a configured comm
   it("returns an audited read-only denial when the command deck is read-only", async () => {
     const composerQueue = new ComposerQueue(makeDeps());
     const app = createApp(FIXTURE_HOME, {
-      commandDeck: makeCommandDeck({ composerQueue, isReadOnly: vi.fn().mockResolvedValue(true) }),
+      commandDeck: makeCommandDeck({
+        composerQueue,
+        isReadOnly: vi.fn().mockResolvedValue(true),
+        isCrewMutationReadOnly: vi.fn().mockResolvedValue(true),
+      }),
     });
     const res = await app.request("/api/tasks/task-a1/send", {
       method: "POST",
@@ -276,6 +280,27 @@ describe("POST /api/tasks/:id/send - crew steer, works without a configured comm
     });
     expect(res.status).toBe(409);
     expect(listAudit()[0]).toMatchObject({ script: "fm-send.sh", ok: false, summary: "read-only" });
+  });
+
+  it("does not treat an unavailable app-owned deck as read-only for crew steering", async () => {
+    const fmHome = makeUnlockedFixtureHome();
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(fmHome, {
+      commandDeck: makeCommandDeck({
+        composerQueue,
+        isReadOnly: vi.fn().mockResolvedValue(true),
+        isCrewMutationReadOnly: vi.fn().mockResolvedValue(false),
+      }),
+    });
+    const res = await app.request("/api/tasks/task-a1/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "please continue" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; stdout: string };
+    expect(body.ok).toBe(true);
+    expect(body.stdout).toContain("stub sent to task-a1: please continue");
   });
 });
 
@@ -298,7 +323,11 @@ describe("POST /api/tasks/:id/interrupt - crew unstick ladder", () => {
   it("returns an audited read-only denial when the command deck is read-only", async () => {
     const composerQueue = new ComposerQueue(makeDeps());
     const app = createApp(FIXTURE_HOME, {
-      commandDeck: makeCommandDeck({ composerQueue, isReadOnly: vi.fn().mockResolvedValue(true) }),
+      commandDeck: makeCommandDeck({
+        composerQueue,
+        isReadOnly: vi.fn().mockResolvedValue(true),
+        isCrewMutationReadOnly: vi.fn().mockResolvedValue(true),
+      }),
     });
     const res = await app.request("/api/tasks/task-a1/interrupt", { method: "POST" });
     expect(res.status).toBe(409);
@@ -308,6 +337,23 @@ describe("POST /api/tasks/:id/interrupt - crew unstick ladder", () => {
       ok: false,
       summary: "read-only",
     });
+  });
+
+  it("does not treat an unavailable app-owned deck as read-only for crew interrupts", async () => {
+    const fmHome = makeUnlockedFixtureHome();
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(fmHome, {
+      commandDeck: makeCommandDeck({
+        composerQueue,
+        isReadOnly: vi.fn().mockResolvedValue(true),
+        isCrewMutationReadOnly: vi.fn().mockResolvedValue(false),
+      }),
+    });
+    const res = await app.request("/api/tasks/task-a1/interrupt", { method: "POST" });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; stdout: string };
+    expect(body.ok).toBe(true);
+    expect(body.stdout).toContain("stub sent key C-c to task-a1");
   });
 });
 

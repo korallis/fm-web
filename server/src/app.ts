@@ -22,8 +22,10 @@ export interface CommandDeckDeps {
   composerQueue: ComposerQueue;
   /** Sends Ctrl-C to the app-owned session; returns false when read-only. */
   interrupt: () => Promise<boolean>;
-  /** True when a live firstmate session other than our own owned one holds `state/.lock`. */
+  /** True when the app-owned command deck cannot accept mutating input. */
   isReadOnly: () => Promise<boolean>;
+  /** True when task-scoped crew mutation routes must not send into crew sessions. */
+  isCrewMutationReadOnly?: () => Promise<boolean>;
 }
 
 export interface SnapshotOptions {
@@ -69,7 +71,9 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
   const commandDeck = options.commandDeck;
 
   const isCrewMutationReadOnly = async (home: string): Promise<boolean> => {
-    if (commandDeck !== undefined && home === commandDeck.fmHome) return commandDeck.isReadOnly();
+    if (commandDeck?.isCrewMutationReadOnly !== undefined && home === commandDeck.fmHome) {
+      return commandDeck.isCrewMutationReadOnly();
+    }
     return readLockInfo(home).alive === true;
   };
 
