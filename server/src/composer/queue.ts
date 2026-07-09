@@ -110,10 +110,17 @@ export class ComposerQueue {
         if (verdict === "empty" || verdict === "unknown") {
           next.status = "sent";
           if (verdict === "unknown") next.detail = "sent (pane unreadable — assumed delivered)";
+        } else if (verdict === "pending") {
+          const detail = "Enter was swallowed - text may still be in the composer";
+          next.status = "failed";
+          next.detail = detail;
+          this.failAllQueued(detail);
+          this.prune();
+          await this.emitState();
+          break;
         } else {
           next.status = "failed";
-          next.detail =
-            verdict === "pending" ? "Enter was swallowed — text may still be in the composer" : "send failed";
+          next.detail = "send failed";
         }
         this.prune();
         await this.emitState();

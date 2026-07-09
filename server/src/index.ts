@@ -10,13 +10,9 @@ import { loadTimingFromEnv } from "./adapter/timing.js";
 import { loadHarnessCommandFromEnv, loadPortFromEnv } from "./config.js";
 import { SnapshotBroadcaster } from "./snapshotBroadcaster.js";
 import { ComposerQueue } from "./composer/queue.js";
-import {
-  ensureFirstMateSession,
-  isFirstMateSessionReady,
-  isLockHeldByOwnSession,
-  isSessionBusy,
-} from "./tmux/sessionManager.js";
-import { captureResyncSnapshot, ensurePaneStream, PaneTailer } from "./tmux/paneStream.js";
+import { bootstrapCommandDeck } from "./commandDeck/bootstrap.js";
+import { isFirstMateSessionReady, isLockHeldByOwnSession, isSessionBusy } from "./tmux/sessionManager.js";
+import { captureResyncSnapshot } from "./tmux/paneStream.js";
 import { submitText } from "./tmux/submit.js";
 import { sendKey } from "./tmux/tmuxClient.js";
 import { isSameOriginRequest } from "./http/origin.js";
@@ -31,27 +27,6 @@ const { upgradeWebSocket, websocket } = createBunWebSocket();
 const timing = loadTimingFromEnv(process.env);
 const captainRegex = captainRegexFromEnv(process.env);
 const harnessCommand = loadHarnessCommandFromEnv(process.env);
-
-interface CommandDeckBoot {
-  target: string | null;
-  tailer: PaneTailer | null;
-}
-
-/** Never lets a failed session/tmux bootstrap take down the read-only Bridge dashboard. */
-async function bootstrapCommandDeck(home: string, harness: string): Promise<CommandDeckBoot> {
-  try {
-    const { target, created } = await ensureFirstMateSession(home, harness);
-    console.log(`first-mate session ${created ? "started" : "reused"}: ${target}`);
-    const sessionName = target.split(":")[0] as string;
-    const logPath = await ensurePaneStream(target, sessionName);
-    const tailer = new PaneTailer(logPath);
-    tailer.start();
-    return { target, tailer };
-  } catch (error) {
-    console.error("Failed to start the app-owned first-mate session; command deck is unavailable", error);
-    return { target: null, tailer: null };
-  }
-}
 
 const deck = await bootstrapCommandDeck(fmHome, harnessCommand);
 

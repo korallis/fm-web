@@ -132,6 +132,31 @@ describe("ComposerQueue verdict handling", () => {
     expect(queue.getEntries()[0]?.detail).toMatch(/swallowed/);
   });
 
+  it("stops processing and fails queued prompts after a swallowed Enter", async () => {
+    let resolveSubmit!: (value: SubmitVerdict) => void;
+    const submitPromise = new Promise<SubmitVerdict>((resolvePromise) => {
+      resolveSubmit = resolvePromise;
+    });
+    const deps = makeDeps({ submit: vi.fn().mockReturnValue(submitPromise) });
+    const queue = new ComposerQueue(deps);
+
+    await queue.enqueue("first");
+    await queue.enqueue("second");
+    await vi.waitFor(() => {
+      expect(queue.getEntries().find((e) => e.text === "first")?.status).toBe("sending");
+      expect(queue.getEntries().find((e) => e.text === "second")?.status).toBe("queued");
+    });
+
+    resolveSubmit("pending");
+
+    await vi.waitFor(() => {
+      expect(queue.getEntries().find((e) => e.text === "first")?.status).toBe("failed");
+      expect(queue.getEntries().find((e) => e.text === "second")?.status).toBe("failed");
+    });
+    expect(deps.submit).toHaveBeenCalledTimes(1);
+    expect(queue.getEntries().find((e) => e.text === "second")?.detail).toMatch(/swallowed/);
+  });
+
   it("marks an unreadable pane as sent (lenient), with an explanatory detail", async () => {
     const deps = makeDeps({ submit: vi.fn().mockResolvedValue("unknown") });
     const queue = new ComposerQueue(deps);
