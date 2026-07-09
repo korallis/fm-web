@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { GuardedActionRequest, PeekResult, TimingConstants } from "@fm-web/shared";
-import { buildFleetSnapshot } from "./adapter/fleetState.js";
+import { buildFleetSnapshot, readIfExists } from "./adapter/fleetState.js";
 import { buildTaskDetail } from "./adapter/taskDetail.js";
-import { isSafeTaskId } from "./adapter/paths.js";
+import { isSafeTaskId, metaPath } from "./adapter/paths.js";
 import { discoverHomes, resolveHomeId } from "./adapter/homes.js";
 import { discoverSkills } from "./adapter/skills.js";
 import type { ComposerQueue } from "./composer/queue.js";
@@ -50,6 +50,10 @@ function parsePeekLines(raw: string | undefined): number {
   return Math.min(value, MAX_PEEK_LINES);
 }
 
+function taskMetaExists(fmHome: string, id: string): boolean {
+  return readIfExists(metaPath(fmHome, id)) !== null;
+}
+
 function extractGuardedActionRequest(body: unknown): GuardedActionRequest | null {
   if (body === null || typeof body !== "object" || !("script" in body) || !("args" in body)) return null;
   const { script, args } = body as { script: unknown; args: unknown };
@@ -86,6 +90,7 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
     const home = resolveHomeId(fmHome, c.req.query("home"));
     if (home === null) return c.json({ error: "unknown home id" }, 400);
+    if (!taskMetaExists(home, id)) return c.json({ error: "task not found" }, 404);
     const lines = parsePeekLines(c.req.query("lines"));
     try {
       const result = await runReadOnlyScript(home, "fm-peek.sh", [id, String(lines)]);
@@ -100,6 +105,7 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
     const home = resolveHomeId(fmHome, c.req.query("home"));
     if (home === null) return c.json({ error: "unknown home id" }, 400);
+    if (!taskMetaExists(home, id)) return c.json({ error: "task not found" }, 404);
     const text = extractText(await c.req.json().catch(() => null));
     if (text === null) return c.json({ error: "body must be { text: string }" }, 400);
     return c.json(await runGuardedAction(home, "fm-send.sh", [id, text]));
@@ -110,6 +116,7 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
     const home = resolveHomeId(fmHome, c.req.query("home"));
     if (home === null) return c.json({ error: "unknown home id" }, 400);
+    if (!taskMetaExists(home, id)) return c.json({ error: "task not found" }, 404);
     return c.json(await runGuardedAction(home, "fm-send.sh", [id, "--key", "C-c"]));
   });
 

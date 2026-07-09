@@ -232,7 +232,7 @@ export async function readNoMistakesGateStatus(
   }
 }
 
-const DEFAULT_MUTATING_SCRIPT_TIMEOUT_MS = 15_000;
+export const DEFAULT_MUTATING_SCRIPT_TIMEOUT_MS = 90_000;
 
 /**
  * Run an allowlisted mutating firstmate script - the advanced drawer's one execution path. Same

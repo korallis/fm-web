@@ -170,6 +170,12 @@ describe("GET /api/tasks/:id/peek - works without a configured command deck", ()
     expect(res.status).toBe(400);
   });
 
+  it("rejects a safe selector that has no task meta record", async () => {
+    const app = createApp(FIXTURE_HOME);
+    const res = await app.request("/api/tasks/backend-selector/peek");
+    expect(res.status).toBe(404);
+  });
+
   it("clamps a non-numeric lines query to the default", async () => {
     const app = createApp(FIXTURE_HOME);
     const res = await app.request("/api/tasks/task-a1/peek?lines=not-a-number");
@@ -201,6 +207,16 @@ describe("POST /api/tasks/:id/send - crew steer, works without a configured comm
     expect(res.status).toBe(400);
   });
 
+  it("rejects a safe selector that has no task meta record", async () => {
+    const app = createApp(FIXTURE_HOME);
+    const res = await app.request("/api/tasks/backend-selector/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "hi" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   it("rejects a cross-origin request", async () => {
     const app = createApp(FIXTURE_HOME);
     const res = await app.request("/api/tasks/task-a1/send", {
@@ -224,6 +240,12 @@ describe("POST /api/tasks/:id/interrupt - crew unstick ladder", () => {
     const body = (await res.json()) as { ok: boolean; stdout: string };
     expect(body.ok).toBe(true);
     expect(body.stdout).toContain("stub sent key C-c to task-a1");
+  });
+
+  it("rejects a safe selector that has no task meta record", async () => {
+    const app = createApp(FIXTURE_HOME);
+    const res = await app.request("/api/tasks/backend-selector/interrupt", { method: "POST" });
+    expect(res.status).toBe(404);
   });
 });
 

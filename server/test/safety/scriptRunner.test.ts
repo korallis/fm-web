@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_MUTATING_SCRIPT_TIMEOUT_MS,
   readNoMistakesGateStatus,
   runMutatingScript,
   runReadOnlyScript,
@@ -242,6 +243,10 @@ describe("readNoMistakesGateStatus", () => {
 });
 
 describe("runMutatingScript", () => {
+  it("keeps one shared mutating-script timeout long enough for tmux and git operations", () => {
+    expect(DEFAULT_MUTATING_SCRIPT_TIMEOUT_MS).toBe(90_000);
+  });
+
   it("executes an allowlisted mutating script end to end", async () => {
     const result = await runMutatingScript(FIXTURE_HOME, "fm-send.sh", ["some-target", "hello"]);
     expect(result.exitCode).toBe(0);
