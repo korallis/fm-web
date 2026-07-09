@@ -49,4 +49,39 @@ describe("createApp", () => {
     expect(slashResponse.status).toBe(400);
     expect(backslashResponse.status).toBe(400);
   });
+
+  it("lists discoverable homes with the command deck's bound home id", async () => {
+    const app = createApp(FIXTURE_HOME);
+
+    const response = await app.request("/api/homes");
+    const body = (await response.json()) as { commandDeckHomeId: string; homes: { id: string }[] };
+
+    expect(body.commandDeckHomeId).toBe("primary");
+    expect(body.homes.map((home) => home.id)).toEqual(["primary", "demo-secondmate"]);
+  });
+
+  it("serves a fleet snapshot for a registered secondmate home via ?home=", async () => {
+    const app = createApp(FIXTURE_HOME);
+
+    const response = await app.request("/api/fleet?home=demo-secondmate");
+    const body = (await response.json()) as FleetSnapshot;
+
+    expect(body.fmHome).toBe("/tmp/fixture-home-secondmate");
+  });
+
+  it("400s an unknown ?home= id", async () => {
+    const app = createApp(FIXTURE_HOME);
+
+    const response = await app.request("/api/fleet?home=no-such-home");
+
+    expect(response.status).toBe(400);
+  });
+
+  it("400s task detail for an unknown ?home= id", async () => {
+    const app = createApp(FIXTURE_HOME);
+
+    const response = await app.request("/api/tasks/task-b2?home=no-such-home");
+
+    expect(response.status).toBe(400);
+  });
 });

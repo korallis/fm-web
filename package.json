@@ -9,6 +9,7 @@
     "client"
   ],
   "scripts": {
+    "start": "bun scripts/start.mjs",
     "dev:server": "bun run --cwd server dev",
     "dev:client": "bun run --cwd client dev",
     "build": "bun run --cwd shared build && bun run --cwd server build && bun run --cwd client build",

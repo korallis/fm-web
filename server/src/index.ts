@@ -1,14 +1,14 @@
+import { isAbsolute } from "node:path";
 import { createBunWebSocket } from "hono/bun";
 import type { WSContext } from "hono/ws";
 import type { SessionWsMessage } from "@fm-web/shared";
 import { createApp } from "./app.js";
-import { buildFleetSnapshot } from "./adapter/fleetState.js";
 import { readLockInfo } from "./adapter/lock.js";
-import { watchFmHome } from "./eventBus/watcher.js";
+import { resolveHomeId } from "./adapter/homes.js";
+import { HomeChannelRegistry } from "./eventBus/homeChannels.js";
 import { captainRegexFromEnv } from "./adapter/captainClassifier.js";
 import { loadTimingFromEnv } from "./adapter/timing.js";
 import { loadHarnessCommandFromEnv, loadPortFromEnv } from "./config.js";
-import { SnapshotBroadcaster } from "./snapshotBroadcaster.js";
 import { ComposerQueue } from "./composer/queue.js";
 import { bootstrapCommandDeck } from "./commandDeck/bootstrap.js";
 import { isFirstMateSessionReady, isLockHeldByOwnSession, isSessionBusy } from "./tmux/sessionManager.js";
@@ -20,6 +20,15 @@ import { isSameOriginRequest } from "./http/origin.js";
 const fmHomeEnv = process.env["FM_HOME"];
 if (fmHomeEnv === undefined || fmHomeEnv === "") {
   throw new Error("FM_HOME must be set to a firstmate home directory");
+}
+if (!isAbsolute(fmHomeEnv)) {
+  // Every workspace's own dev/build script (`bun run --cwd server ...`) changes the process's cwd
+  // before this file ever runs, so a relative FM_HOME resolves against whichever workspace happened
+  // to spawn the server - silently reading an empty/wrong home instead of failing loudly.
+  throw new Error(
+    `FM_HOME must be an absolute path (got "${fmHomeEnv}") - a relative path resolves differently ` +
+      "depending on which workspace script started the server.",
+  );
 }
 const fmHome: string = fmHomeEnv;
 
@@ -62,31 +71,32 @@ const app = createApp(fmHome, {
   },
 });
 
-const fleetClients = new Set<WSContext>();
-const snapshotBroadcaster = new SnapshotBroadcaster(() =>
-  buildFleetSnapshot(fmHome, Date.now(), timing, captainRegex),
-);
-
 const logSnapshotError = (error: unknown): void => {
   console.error("Failed to build fleet snapshot", error);
 };
 
+const homeChannels = new HomeChannelRegistry(timing, captainRegex, logSnapshotError);
+
+app.use("/ws", async (c, next) => {
+  if (resolveHomeId(fmHome, c.req.query("home")) === null) return c.text("unknown home id", 400);
+  return next();
+});
+
 app.get(
   "/ws",
-  upgradeWebSocket(() => ({
-    onOpen: (_evt, ws) => {
-      fleetClients.add(ws);
-      void snapshotBroadcaster.sendTo(ws).catch(logSnapshotError);
-    },
-    onClose: (_evt, ws) => {
-      fleetClients.delete(ws);
-    },
-  })),
+  upgradeWebSocket((c) => {
+    const channel = homeChannels.get(resolveHomeId(fmHome, c.req.query("home")) ?? fmHome);
+    return {
+      onOpen: (_evt, ws) => {
+        channel.clients.add(ws);
+        void channel.broadcaster.sendTo(ws).catch(logSnapshotError);
+      },
+      onClose: (_evt, ws) => {
+        channel.clients.delete(ws);
+      },
+    };
+  }),
 );
-
-watchFmHome(fmHome, () => {
-  void snapshotBroadcaster.broadcast(fleetClients).catch(logSnapshotError);
-});
 
 const sessionClients = new Set<WSContext>();
 

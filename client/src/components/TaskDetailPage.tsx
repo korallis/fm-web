@@ -6,8 +6,16 @@ import { BriefReport } from "./BriefReport";
 import { PrStatusCard } from "./PrStatusCard";
 import { GateFindingsPanel } from "./GateFindingsPanel";
 
-export function TaskDetailPage({ taskId, onBack }: { taskId: string; onBack: () => void }) {
-  const { data: detail, isLoading, error } = useTaskDetail(taskId);
+export function TaskDetailPage({
+  homeId,
+  taskId,
+  onBack,
+}: {
+  homeId: string;
+  taskId: string;
+  onBack: () => void;
+}) {
+  const { data: detail, isLoading, error } = useTaskDetail(homeId, taskId);
 
   return (
     <div className="flex flex-col gap-6">

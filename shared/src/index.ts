@@ -95,6 +95,13 @@ export interface ProjectEntry {
   added: string;
 }
 
+/** A discoverable firstmate home: the booted primary, or a registered secondmate's home. */
+export interface HomeEntry {
+  id: string;
+  path: string;
+  label: string;
+}
+
 /** `data/secondmates.md` - one secondmate registry line. */
 export interface SecondmateEntry {
   id: string;

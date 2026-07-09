@@ -28,6 +28,32 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 The `QueryClient` in `client/src/main.tsx` sets `networkMode: "always"`. This app is local-only (127.0.0.1); the browser's general online/offline detection has no bearing on whether the local FM Deck server is reachable, so the default `networkMode: "online"` would pause retries incorrectly (e.g. no wifi but localhost is still right there). Separately, and NOT something to "fix": TanStack Query also pauses retries when `document.visibilityState` is `"hidden"` (a backgrounded tab) regardless of `networkMode` - this is correct, intentional behavior, and is why a query stuck retrying in an automated/background browser tab can look permanently blank; it resolves once the tab is genuinely focused.
 
+## Multi-home switcher (Phase 5)
+
+`server/src/adapter/homes.ts` discovers homes read-only: the booted primary plus every home
+registered in `data/secondmates.md` (no separate registry to invent or maintain). `?home=<id>` on
+`GET /api/fleet`, `GET /api/tasks/:id`, and `GET /ws` resolves against that list (400 for an
+unknown id); `server/src/eventBus/homeChannels.ts` lazily keeps one chokidar watcher + snapshot
+broadcaster per distinct home path so a switched-home Bridge view gets its own live client set.
+The Command Deck's app-owned tmux session always stays bound to the booted primary home - only
+Bridge/task-detail views follow the switcher (`client/src/routing/useSelectedHome.ts`, persisted
+to localStorage, not the URL, since it's a navigation convenience rather than fleet domain truth).
+
+## FM_HOME must be an absolute path
+
+`server/src/index.ts` rejects a relative `FM_HOME` at startup. `bun run --cwd server dev` (and
+`--cwd client`) change the process's cwd before `index.ts` ever runs, so a relative `FM_HOME`
+silently resolves against whichever workspace script started the server - not the shell's own cwd
+- and the app then serves an empty fleet snapshot with no error at all. Always pass an absolute
+path (e.g. `FM_HOME="$PWD/server/test/fixtures/fm-home"`).
+
+## One-command launch
+
+`bun run start` runs `scripts/start.mjs` (plain JS, deliberately outside the three typed
+workspaces and excluded from eslint/tsc in `eslint.config.js`'s ignores - a fourth tsconfig'd
+workspace would be overkill for a 20-line launcher), which spawns `dev:server` and `dev:client`
+together via `Bun.spawn`, forwarding SIGINT/SIGTERM to both.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
