@@ -12,7 +12,7 @@ export const READ_ONLY_SCRIPTS = [
   "fm-lock.sh",
 ] as const;
 
-/** Reserved for a future advanced drawer, not wired to any caller, and always refused here. */
+/** Mutating scripts may run only through guarded actions with caller-specific argv validation. */
 export const MUTATING_SCRIPTS = [
   "fm-brief.sh",
   "fm-spawn.sh",

@@ -41,7 +41,7 @@ function DecisionCard({ item, onReply }: { item: DecisionItem; onReply: (item: D
 
 export interface DecisionsInboxProps {
   decisions: readonly DecisionItem[];
-  /** Prefills the composer draft with a ready reply and routes there — never a raw bypass. */
+  /** Prefills the composer draft with a ready reply and routes there - never a raw bypass. */
   onReply: (item: DecisionItem) => void;
 }
 
