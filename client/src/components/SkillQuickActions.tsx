@@ -6,7 +6,7 @@ export interface SkillQuickActionsProps {
   onSelect: (skill: SkillEntry) => void;
 }
 
-/** Runtime-discovered, user-invocable skills as one-click composer prefills — never hardcoded. */
+/** Runtime-discovered, user-invocable skills as one-click composer prefills - never hardcoded. */
 export function SkillQuickActions({ skills, skillInvocationPrefix, onSelect }: SkillQuickActionsProps) {
   const invocable = skills.filter((skill) => skill.userInvocable);
   if (invocable.length === 0) return null;

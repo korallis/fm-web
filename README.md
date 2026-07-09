@@ -13,9 +13,10 @@ default tab; Bridge is still there alongside it.
 
 - Runs on 127.0.0.1 only (local, not exposed).
 - Requires `FM_HOME`; no firstmate home path is hardcoded.
-- Reads firstmate home state read-only; the only writes this app ever makes are tmux operations
-  (send-keys/capture-pane/pipe-pane) against a tmux session it created itself - never a firstmate
-  script, never firstmate-tracked state.
+- Requires `tmux` for the Command Deck runtime and for the real-session server tests.
+- Reads firstmate home state read-only; Command Deck writes are limited to tmux operations
+  (send-keys/capture-pane/pipe-pane) against a tmux session it created itself plus an app-owned
+  pipe log under OS temp - never a firstmate script, never firstmate-tracked state.
 - Shows supervision health, decisions inbox, fleet tasks, backlog lanes, wake feed,
   project-mode chips, and per-task detail (Bridge), plus the live composer/terminal (Command Deck).
 - Task detail shows brief/report markdown, PR and merge-poll status, no-mistakes gate findings,
@@ -78,15 +79,17 @@ never on disk under a firstmate home.
   `404` when `state/<id>.meta` does not exist.
 - `GET /ws` upgrades to a WebSocket and sends a `FleetSnapshot` on open and after debounced
   firstmate `state/` or `data/` changes.
-- `GET /api/skills` returns runtime-discovered skills (`.claude/skills` + `.agents/skills`).
+- `GET /api/skills` returns runtime-discovered skills (`.claude/skills` + `.agents/skills`);
+  duplicate ids prefer `.claude`, and only `user-invocable: true` skills appear as quick actions.
 - `GET /api/composer/state` returns the current `ComposerState` (busy/read-only/lock/queue).
 - `POST /api/composer/send` with `{ text }` enqueues a prompt on the busy-aware verified-submit
   queue; `200` when accepted, `409` when rejected (read-only or unavailable), `400` for a
-  malformed body.
+  malformed body, `403` for cross-origin requests.
 - `POST /api/session/interrupt` sends Ctrl-C to the app-owned session (a no-op returning
-  `{ sent: false }` when read-only or unavailable).
+  `{ sent: false }` when read-only or unavailable, `403` for cross-origin requests).
 - `GET /ws/session` upgrades to a WebSocket streaming `SessionWsMessage`s: an initial `snapshot` of
-  the visible pane, live `chunk`s of new pane output, and `composerState` updates.
+  the visible pane, live `chunk`s of new pane output, and `composerState` updates. Cross-origin
+  upgrades are rejected with `403`.
 
 ## Safety
 
@@ -94,7 +97,7 @@ The adapter reads firstmate files defensively and does not write to `FM_HOME`. T
 allows only read-only scripts (`fm-peek.sh`, `fm-crew-state.sh`, `fm-project-mode.sh`,
 `fm-review-diff.sh`, and `fm-lock.sh status`). Task detail may also run bounded, read-only
 `no-mistakes axi status` in a ship task's existing worktree, separate from the firstmate script
-allowlist, to display raw gate status. All mutating scripts are refused;
+allowlist, to display raw gate status. All mutating scripts are refused categorically;
 `fm-session-start.sh`, `fm-wake-drain.sh`, and bare or acquire-style `fm-lock.sh` calls are
 always refused. The Command Deck's composer never calls any firstmate script at all - it drives its own
 app-owned tmux session directly (send-keys/capture-pane/pipe-pane), the same way a human typing in

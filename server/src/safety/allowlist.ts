@@ -12,7 +12,7 @@ export const READ_ONLY_SCRIPTS = [
   "fm-lock.sh",
 ] as const;
 
-/** Future mutating surfaces only, and NOT wired to any caller today - always refused here. */
+/** Reserved for a future advanced drawer, not wired to any caller, and always refused here. */
 export const MUTATING_SCRIPTS = [
   "fm-brief.sh",
   "fm-spawn.sh",

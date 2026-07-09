@@ -16,7 +16,7 @@ const ESC = "\x1b";
 
 /**
  * Strip dim/faint (ANSI SGR code 2) styled runs from one captured line, then drop remaining
- * escape sequences — leaves only the plain, normal-intensity text a human actually typed. Ghost
+ * escape sequences - leaves only the plain, normal-intensity text a human actually typed. Ghost
  * text (a harness's dim predicted-next-prompt suggestion) is SGR 2 and must never read as
  * pending input.
  */
@@ -78,7 +78,7 @@ export function stripGhost(line: string): string {
 /**
  * Classify a captured composer/cursor line (captured WITH ANSI via `capture-pane -e`, bounded to
  * one row) as empty (safe to inject; also the positive ack that a submit landed) or pending (real
- * unsubmitted text — defer/retry). `composerIdleRegex` mirrors FM_COMPOSER_IDLE_RE.
+ * unsubmitted text - defer/retry). `composerIdleRegex` mirrors FM_COMPOSER_IDLE_RE.
  */
 export function classifyComposerLine(rawAnsiLine: string, composerIdleRegex?: RegExp): ComposerLineState {
   const plain = stripGhost(rawAnsiLine);

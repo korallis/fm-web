@@ -127,7 +127,7 @@ deck.tailer?.onChunk((text) => broadcastSessionMessage({ type: "chunk", text }))
 composerQueue.onStateChange((state) => broadcastSessionMessage({ type: "composerState", state }));
 
 // Composer state can change independent of our own queue (the harness starting/finishing a turn
-// on its own) — poll and broadcast periodically so busy/lock indicators stay live either way.
+// on its own) - poll and broadcast periodically so busy/lock indicators stay live either way.
 const COMPOSER_POLL_MS = 2000;
 setInterval(() => {
   if (sessionClients.size === 0) return;

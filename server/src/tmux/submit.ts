@@ -4,7 +4,7 @@ import { classifyComposerLine, type ComposerLineState } from "./composerState.js
 /**
  * TS port of `fm_tmux_submit_core` / `fm_tmux_submit_enter_core` (bin/fm-tmux-lib.sh), targeted
  * at the app-owned session:window instead of a firstmate-tracked crewmate. Type once, submit with
- * Enter, retry Enter ONLY (never retype — a swallowed Enter already left our text in the composer).
+ * Enter, retry Enter ONLY (never retype - a swallowed Enter already left our text in the composer).
  */
 export type SubmitVerdict = ComposerLineState | "unknown" | "send-failed";
 
@@ -54,7 +54,7 @@ export async function readComposerState(
 
 /**
  * Pre-Enter settle: slash commands open a completion popup in some TUIs, and codex opens the
- * same kind of popup for a `$<skill>` invocation — submitting too fast selects nothing. Scoped to
+ * same kind of popup for a `$<skill>` invocation - submitting too fast selects nothing. Scoped to
  * codex on purpose: a leading `$` commonly starts plain text ("$5/month") in other harnesses.
  */
 export function selectSettleMs(text: string, harness?: string): number {
@@ -83,8 +83,8 @@ async function submitEnterCore(
 
 /**
  * Type `text` into `target` ONCE, then submit with Enter, verifying the composer cleared.
- * Verdict: "empty" (submitted), "pending" (positively-confirmed swallowed Enter — the caller
- * should treat this as a failed steer), "unknown" (pane unreadable — lenient: assume sent), or
+ * Verdict: "empty" (submitted), "pending" (positively-confirmed swallowed Enter - the caller
+ * should treat this as a failed steer), "unknown" (pane unreadable - lenient: assume sent), or
  * "send-failed" (the initial send-keys itself failed).
  */
 export async function submitText(

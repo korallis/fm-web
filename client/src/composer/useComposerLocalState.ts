@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * Composer drafts + prompt history are UI convenience state, not fleet domain truth — they live in
+ * Composer drafts + prompt history are UI convenience state, not fleet domain truth - they live in
  * the browser (namespaced per `fmHome`), never on disk under a firstmate home.
  */
 

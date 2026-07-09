@@ -6,7 +6,7 @@ import { isBusyFromTail } from "./composerState.js";
 /**
  * The app-owned first-mate tmux session: one deterministically-named session per firstmate home,
  * auto-started on boot and reused (never recreated) across app restarts as long as tmux itself
- * stays up. This is a session THIS app owns and created — never a firstmate-tracked crewmate — so
+ * stays up. This is a session THIS app owns and created - never a firstmate-tracked crewmate - so
  * controlling it (send-keys/capture-pane) sits entirely outside the safety module's script
  * allowlist.
  */
@@ -85,7 +85,7 @@ export function isPidDescendantOf(pid: number, ancestorPid: number, maxDepth = 1
 }
 
 /**
- * True when `lockPid` (from `state/.lock`) is owned by our own app-owned session's pane — i.e. it
+ * True when `lockPid` (from `state/.lock`) is owned by our own app-owned session's pane - i.e. it
  * is the harness process we ourselves spawned, not some other live firstmate session holding the
  * lock. Used to decide read-only/coexistence mode without ever acquiring the lock ourselves.
  */

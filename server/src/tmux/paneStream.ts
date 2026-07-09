@@ -14,7 +14,7 @@ import { capturePaneVisibleAnsi, pipePaneAppend } from "./tmuxClient.js";
 
 /**
  * Streams an app-owned session's pane output to xterm.js: `pipe-pane -o` continuously appends the
- * pane's raw bytes (full ANSI, cursor movement, the works — exactly what a terminal emulator
+ * pane's raw bytes (full ANSI, cursor movement, the works - exactly what a terminal emulator
  * needs) to a log file THIS app owns (never under `fmHome`); `PaneTailer` follows new bytes.
  * `capture-pane -e` separately provides an on-connect resync snapshot of the current screen.
  */
@@ -63,7 +63,7 @@ export type ChunkListener = (text: string) => void;
 /**
  * Follows new bytes appended to a pipe-pane log file, decoding as UTF-8 with a persistent
  * streaming decoder so a multi-byte character split across two reads never emits a replacement
- * character. Starts from the file's CURRENT size — historical content from a previous server run
+ * character. Starts from the file's CURRENT size - historical content from a previous server run
  * is not replayed (the on-connect `capture-pane -e` snapshot covers "what's on screen now").
  */
 export class PaneTailer {

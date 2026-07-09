@@ -45,7 +45,7 @@ export function isHarnessPidAlive(pid: number): boolean {
   return HARNESS_RE.test(basename(comm)) || HARNESS_RE.test(args);
 }
 
-/** Reads `state/.lock` (if present) and resolves liveness — the one place both the fleet snapshot and the command deck's read-only check should read the lock from. */
+/** Reads `state/.lock` (if present), resolves liveness, and fails closed on unreadable/malformed existing locks. */
 export function readLockInfo(fmHome: string): LockInfo {
   let content: string;
   try {

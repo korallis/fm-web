@@ -4,7 +4,7 @@ import type { SkillEntry } from "@fm-web/shared";
 
 /**
  * Runtime skill quick-action discovery: scans `.claude/skills/<id>/SKILL.md` and
- * `.agents/skills/<id>/SKILL.md` under a firstmate home — never hardcoded, per the plan. Read-only.
+ * `.agents/skills/<id>/SKILL.md` under a firstmate home - never hardcoded, per the plan. Read-only.
  */
 
 const SKILL_ROOTS = [".agents", ".claude"] as const;

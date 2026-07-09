@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 
 /**
  * Thin wrappers around the `tmux` binary for the app-owned first-mate session. This is generic
- * tmux control (send-keys/capture-pane/pipe-pane on a session THIS app created) — never a
+ * tmux control (send-keys/capture-pane/pipe-pane on a session THIS app created) - never a
  * firstmate script, so it sits outside the safety module's allowlist entirely.
  */
 
