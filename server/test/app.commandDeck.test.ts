@@ -1,3 +1,5 @@
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -5,10 +7,11 @@ import type { ComposerQueueDeps } from "../src/composer/queue.js";
 import { ComposerQueue } from "../src/composer/queue.js";
 import type { CommandDeckDeps } from "../src/app.js";
 import { createApp } from "../src/app.js";
-import { clearAuditForTests } from "../src/safety/audit.js";
+import { clearAuditForTests, listAudit } from "../src/safety/audit.js";
 
 const FIXTURE_HOME = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "fm-home");
 const SKILLS_FIXTURE_HOME = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "skills-home");
+const TEMP_HOMES: string[] = [];
 
 function makeDeps(overrides: Partial<ComposerQueueDeps> = {}): ComposerQueueDeps {
   return {
@@ -32,8 +35,27 @@ function makeCommandDeck(overrides: Partial<CommandDeckDeps> = {}): CommandDeckD
   };
 }
 
+function makeLockedFixtureHome(): string {
+  const parent = mkdtempSync(join(tmpdir(), "fm-web-app-"));
+  const fmHome = join(parent, "fm-home");
+  cpSync(FIXTURE_HOME, fmHome, { recursive: true });
+  writeFileSync(join(fmHome, "state", ".lock"), "not-a-pid\n");
+  TEMP_HOMES.push(parent);
+  return fmHome;
+}
+
+function makeUnlockedFixtureHome(): string {
+  const parent = mkdtempSync(join(tmpdir(), "fm-web-app-"));
+  const fmHome = join(parent, "fm-home");
+  cpSync(FIXTURE_HOME, fmHome, { recursive: true });
+  rmSync(join(fmHome, "state", ".lock"), { force: true });
+  TEMP_HOMES.push(parent);
+  return fmHome;
+}
+
 afterEach(() => {
   clearAuditForTests();
+  for (const path of TEMP_HOMES.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
 describe("createApp without a command deck", () => {
@@ -185,7 +207,7 @@ describe("GET /api/tasks/:id/peek - works without a configured command deck", ()
 
 describe("POST /api/tasks/:id/send - crew steer, works without a configured command deck", () => {
   it("runs fm-send.sh against the resolved task target", async () => {
-    const app = createApp(FIXTURE_HOME);
+    const app = createApp(makeUnlockedFixtureHome());
     const res = await app.request("/api/tasks/task-a1/send", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -230,11 +252,36 @@ describe("POST /api/tasks/:id/send - crew steer, works without a configured comm
     });
     expect(res.status).toBe(403);
   });
+
+  it("returns an audited read-only denial when a lock is held without a command deck", async () => {
+    const app = createApp(makeLockedFixtureHome());
+    const res = await app.request("/api/tasks/task-a1/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "please continue" }),
+    });
+    expect(res.status).toBe(409);
+    expect(listAudit()[0]).toMatchObject({ script: "fm-send.sh", ok: false, summary: "read-only" });
+  });
+
+  it("returns an audited read-only denial when the command deck is read-only", async () => {
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(FIXTURE_HOME, {
+      commandDeck: makeCommandDeck({ composerQueue, isReadOnly: vi.fn().mockResolvedValue(true) }),
+    });
+    const res = await app.request("/api/tasks/task-a1/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "please continue" }),
+    });
+    expect(res.status).toBe(409);
+    expect(listAudit()[0]).toMatchObject({ script: "fm-send.sh", ok: false, summary: "read-only" });
+  });
 });
 
 describe("POST /api/tasks/:id/interrupt - crew unstick ladder", () => {
   it("sends the C-c special key via fm-send.sh", async () => {
-    const app = createApp(FIXTURE_HOME);
+    const app = createApp(makeUnlockedFixtureHome());
     const res = await app.request("/api/tasks/task-a1/interrupt", { method: "POST" });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; stdout: string };
@@ -246,6 +293,21 @@ describe("POST /api/tasks/:id/interrupt - crew unstick ladder", () => {
     const app = createApp(FIXTURE_HOME);
     const res = await app.request("/api/tasks/backend-selector/interrupt", { method: "POST" });
     expect(res.status).toBe(404);
+  });
+
+  it("returns an audited read-only denial when the command deck is read-only", async () => {
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(FIXTURE_HOME, {
+      commandDeck: makeCommandDeck({ composerQueue, isReadOnly: vi.fn().mockResolvedValue(true) }),
+    });
+    const res = await app.request("/api/tasks/task-a1/interrupt", { method: "POST" });
+    expect(res.status).toBe(409);
+    expect(listAudit()[0]).toMatchObject({
+      script: "fm-send.sh",
+      args: ["task-a1", "--key", "C-c"],
+      ok: false,
+      summary: "read-only",
+    });
   });
 });
 
@@ -307,6 +369,19 @@ describe("advanced drawer routes", () => {
     const body = (await res.json()) as { ok: boolean; error?: string };
     expect(body.ok).toBe(false);
     expect(body.error).toMatch(/not an advanced-drawer script/);
+  });
+
+  it("POST /api/advanced/run rejects argv outside the drawer schema", async () => {
+    const composerQueue = new ComposerQueue(makeDeps());
+    const app = createApp(FIXTURE_HOME, { commandDeck: makeCommandDeck({ composerQueue }) });
+    const res = await app.request("/api/advanced/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ script: "fm-promote.sh", args: ["task-a1", "--force"] }),
+    });
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.ok).toBe(false);
+    expect(body.error).toMatch(/invalid arguments/);
   });
 
   it("POST /api/advanced/run degrades to read-only when another session holds the lock", async () => {

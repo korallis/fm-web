@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { GuardedActionRequest, PeekResult, TimingConstants } from "@fm-web/shared";
 import { buildFleetSnapshot, readIfExists } from "./adapter/fleetState.js";
 import { buildTaskDetail } from "./adapter/taskDetail.js";
+import { readLockInfo } from "./adapter/lock.js";
 import { isSafeTaskId, metaPath } from "./adapter/paths.js";
 import { discoverHomes, resolveHomeId } from "./adapter/homes.js";
 import { discoverSkills } from "./adapter/skills.js";
@@ -65,6 +66,12 @@ function extractGuardedActionRequest(body: unknown): GuardedActionRequest | null
 /** The Hono app factory, isolated from Bun.serve/websocket wiring so it's directly testable. */
 export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
   const app = new Hono();
+  const commandDeck = options.commandDeck;
+
+  const isCrewMutationReadOnly = async (home: string): Promise<boolean> => {
+    if (commandDeck !== undefined && home === commandDeck.fmHome) return commandDeck.isReadOnly();
+    return readLockInfo(home).alive === true;
+  };
 
   app.get("/api/health", (c) => c.json({ ok: true, fmHome }));
   app.get("/api/homes", (c) => c.json({ commandDeckHomeId: "primary", homes: discoverHomes(fmHome) }));
@@ -108,7 +115,11 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     if (!taskMetaExists(home, id)) return c.json({ error: "task not found" }, 404);
     const text = extractText(await c.req.json().catch(() => null));
     if (text === null) return c.json({ error: "body must be { text: string }" }, 400);
-    return c.json(await runGuardedAction(home, "fm-send.sh", [id, text]));
+    const args = [id, text];
+    if (await isCrewMutationReadOnly(home)) {
+      return c.json(recordGuardedActionDenial("fm-send.sh", args, "read-only"), 409);
+    }
+    return c.json(await runGuardedAction(home, "fm-send.sh", args));
   });
   app.post("/api/tasks/:id/interrupt", async (c) => {
     if (!isSameOriginRequest(c.req.raw.headers)) return crossOriginResponse();
@@ -117,10 +128,13 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
     const home = resolveHomeId(fmHome, c.req.query("home"));
     if (home === null) return c.json({ error: "unknown home id" }, 400);
     if (!taskMetaExists(home, id)) return c.json({ error: "task not found" }, 404);
-    return c.json(await runGuardedAction(home, "fm-send.sh", [id, "--key", "C-c"]));
+    const args = [id, "--key", "C-c"];
+    if (await isCrewMutationReadOnly(home)) {
+      return c.json(recordGuardedActionDenial("fm-send.sh", args, "read-only"), 409);
+    }
+    return c.json(await runGuardedAction(home, "fm-send.sh", args));
   });
 
-  const commandDeck = options.commandDeck;
   if (commandDeck === undefined) {
     const notConfigured = (): Response =>
       Response.json({ error: "command deck not configured" }, { status: 503 });

@@ -20,6 +20,22 @@ describe("validateGuardedArgs", () => {
     expect(() => validateGuardedArgs("fm-teardown.sh", ["task-a1", "--force"])).not.toThrow();
   });
 
+  it("accepts the drawer's fm-spawn.sh argv shape", () => {
+    expect(() =>
+      validateGuardedArgs("fm-spawn.sh", [
+        "task-a1",
+        "/tmp/project",
+        "--harness",
+        "claude",
+        "--model",
+        "sonnet",
+        "--effort",
+        "high",
+        "--scout",
+      ]),
+    ).not.toThrow();
+  });
+
   it("rejects a missing first argument", () => {
     expect(() => validateGuardedArgs("fm-teardown.sh", [])).toThrow(GuardedActionError);
   });
@@ -30,6 +46,23 @@ describe("validateGuardedArgs", () => {
 
   it("does not require a task id for scripts without a task-id first argument", () => {
     expect(() => validateGuardedArgs("fm-watch-arm.sh", ["--restart"])).not.toThrow();
+  });
+
+  it("rejects fm-spawn.sh modes the drawer cannot produce", () => {
+    expect(() =>
+      validateGuardedArgs("fm-spawn.sh", ["task-a1", "/tmp/project", "--secondmate", "--harness", "claude"]),
+    ).toThrow(GuardedActionError);
+  });
+
+  it("rejects extra args for fixed-shape advanced actions", () => {
+    expect(() =>
+      validateGuardedArgs("fm-pr-merge.sh", ["task-a1", "https://example.test/pr/1", "--admin"]),
+    ).toThrow(GuardedActionError);
+    expect(() => validateGuardedArgs("fm-promote.sh", ["task-a1", "--force"])).toThrow(GuardedActionError);
+  });
+
+  it("rejects fm-send.sh keys outside the unstick interrupt shape", () => {
+    expect(() => validateGuardedArgs("fm-send.sh", ["task-a1", "--key", "C-d"])).toThrow(GuardedActionError);
   });
 });
 

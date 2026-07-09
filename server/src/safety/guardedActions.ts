@@ -44,6 +44,9 @@ const GUARDED_MUTATING_SCRIPTS = [
   ...ADVANCED_DRAWER_MUTATING_SCRIPTS,
 ] as const satisfies readonly MutatingScript[];
 
+type GuardedScript =
+  (typeof GUARDED_MUTATING_SCRIPTS)[number] | (typeof ADVANCED_DRAWER_READONLY_SCRIPTS)[number];
+
 export function isAdvancedDrawerMutatingScript(script: string): script is MutatingScript {
   return (ADVANCED_DRAWER_MUTATING_SCRIPTS as readonly string[]).includes(script);
 }
@@ -56,18 +59,114 @@ function isGuardedMutatingScript(script: string): script is MutatingScript {
   return (GUARDED_MUTATING_SCRIPTS as readonly string[]).includes(script);
 }
 
-/**
- * The one shape invariant every drawer/task-page caller must satisfy before a script ever spawns:
- * a valid task id where the script expects one. Per-script flag grammars (`--harness`, `--force`,
- * `--stat`, ...) are the client form's job to build correctly; scriptRunner's timeout/output-cap/
- * traversal guards are the safety net for anything else.
- */
-export function validateGuardedArgs(script: MutatingScript | ReadOnlyScript, args: readonly string[]): void {
-  if (!TASK_ID_FIRST_ARG_SCRIPTS.has(script)) return;
+function requireTaskId(script: string, args: readonly string[]): void {
   const taskId = args[0];
   if (taskId === undefined || !isSafeTaskId(taskId)) {
     throw new GuardedActionError(`${script} requires a valid task id as its first argument`);
   }
+}
+
+function requireExactLength(script: string, args: readonly string[], length: number): void {
+  if (args.length !== length) {
+    throw new GuardedActionError(`${script} received invalid arguments`);
+  }
+}
+
+function requireNonBlank(script: string, value: string | undefined): void {
+  if (value === undefined || value.trim() === "") {
+    throw new GuardedActionError(`${script} received invalid arguments`);
+  }
+}
+
+function requireFlagValue(script: string, value: string | undefined): void {
+  requireNonBlank(script, value);
+  if (value?.startsWith("-") === true) {
+    throw new GuardedActionError(`${script} received invalid arguments`);
+  }
+}
+
+function validateOptionalFlag(script: string, args: readonly string[], index: number, flag: string): number {
+  if (args[index] !== flag) return index;
+  requireFlagValue(script, args[index + 1]);
+  return index + 2;
+}
+
+function validateSpawnArgs(args: readonly string[]): void {
+  const script = "fm-spawn.sh";
+  requireTaskId(script, args);
+  requireNonBlank(script, args[1]);
+  if (args[2] !== "--harness") throw new GuardedActionError(`${script} received invalid arguments`);
+  requireFlagValue(script, args[3]);
+  let index = 4;
+  index = validateOptionalFlag(script, args, index, "--model");
+  index = validateOptionalFlag(script, args, index, "--effort");
+  if (args[index] === "--scout") index += 1;
+  if (index !== args.length) throw new GuardedActionError(`${script} received invalid arguments`);
+}
+
+function validateOneTaskArg(script: GuardedScript, args: readonly string[]): void {
+  requireTaskId(script, args);
+  requireExactLength(script, args, 1);
+}
+
+function validateTaskAndUrl(script: GuardedScript, args: readonly string[]): void {
+  requireTaskId(script, args);
+  requireExactLength(script, args, 2);
+  requireNonBlank(script, args[1]);
+}
+
+function validateTeardownArgs(args: readonly string[]): void {
+  const script = "fm-teardown.sh";
+  requireTaskId(script, args);
+  if (args.length === 1) return;
+  if (args.length === 2 && args[1] === "--force") return;
+  throw new GuardedActionError(`${script} received invalid arguments`);
+}
+
+function validateReviewDiffArgs(args: readonly string[]): void {
+  const script = "fm-review-diff.sh";
+  requireTaskId(script, args);
+  if (args.length === 1) return;
+  if (args.length === 2 && args[1] === "--stat") return;
+  throw new GuardedActionError(`${script} received invalid arguments`);
+}
+
+function validateSendArgs(args: readonly string[]): void {
+  const script = "fm-send.sh";
+  requireTaskId(script, args);
+  if (args.length === 2) {
+    requireNonBlank(script, args[1]);
+    return;
+  }
+  if (args.length === 3 && args[1] === "--key" && args[2] === "C-c") return;
+  throw new GuardedActionError(`${script} received invalid arguments`);
+}
+
+export function validateGuardedArgs(script: MutatingScript | ReadOnlyScript, args: readonly string[]): void {
+  switch (script) {
+    case "fm-send.sh":
+      validateSendArgs(args);
+      return;
+    case "fm-spawn.sh":
+      validateSpawnArgs(args);
+      return;
+    case "fm-teardown.sh":
+      validateTeardownArgs(args);
+      return;
+    case "fm-merge-local.sh":
+    case "fm-promote.sh":
+      validateOneTaskArg(script, args);
+      return;
+    case "fm-pr-check.sh":
+    case "fm-pr-merge.sh":
+      validateTaskAndUrl(script, args);
+      return;
+    case "fm-review-diff.sh":
+      validateReviewDiffArgs(args);
+      return;
+  }
+  if (!TASK_ID_FIRST_ARG_SCRIPTS.has(script)) return;
+  requireTaskId(script, args);
 }
 
 /** Human-readable command preview for the drawer's confirm step (never sent to a shell). */
