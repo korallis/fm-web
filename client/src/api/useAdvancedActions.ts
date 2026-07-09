@@ -6,6 +6,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import type { AuditLogEntry, GuardedActionRequest, GuardedActionResult } from "@fm-web/shared";
+import { readGuardedActionResponse } from "./guardedActionResult";
 
 const AUDIT_QUERY_KEY = ["advanced-audit"] as const;
 
@@ -15,7 +16,7 @@ async function runAdvancedAction(request: GuardedActionRequest): Promise<Guarded
     headers: { "content-type": "application/json" },
     body: JSON.stringify(request),
   });
-  return (await res.json()) as GuardedActionResult;
+  return readGuardedActionResponse(res, "POST /api/advanced/run");
 }
 
 /** The advanced drawer's one execution path - direct mutating-script execution, explicitly not

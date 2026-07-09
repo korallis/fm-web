@@ -1,5 +1,6 @@
 import { useMutation, type UseMutationResult } from "@tanstack/react-query";
 import type { GuardedActionResult } from "@fm-web/shared";
+import { readGuardedActionResponse } from "./guardedActionResult";
 
 async function postJson(url: string, body?: unknown): Promise<GuardedActionResult> {
   const init: RequestInit = { method: "POST" };
@@ -8,7 +9,7 @@ async function postJson(url: string, body?: unknown): Promise<GuardedActionResul
     init.body = JSON.stringify(body);
   }
   const res = await fetch(url, init);
-  return (await res.json()) as GuardedActionResult;
+  return readGuardedActionResponse(res, `POST ${url}`);
 }
 
 /** The "steer" rung of the unstick ladder: `fm-send.sh <target> <text>` - a guarded action, not
