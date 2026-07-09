@@ -14,6 +14,7 @@ export default tseslint.config(
       "**/.vite/**",
       "eslint.config.js",
       "server/test/fixtures/**",
+      "scripts/**",
     ],
   },
   js.configs.recommended,

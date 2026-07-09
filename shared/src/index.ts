@@ -95,6 +95,15 @@ export interface ProjectEntry {
   added: string;
 }
 
+/** A discoverable firstmate home: the booted primary, or a registered secondmate's resolved home. */
+export interface HomeEntry {
+  /** Stable id for `?home=` routing; `"primary"` means the booted `FM_HOME`. */
+  id: string;
+  /** Resolved filesystem path returned for display/debugging, not arbitrary client input. */
+  path: string;
+  label: string;
+}
+
 /** `data/secondmates.md` - one secondmate registry line. */
 export interface SecondmateEntry {
   id: string;
@@ -194,9 +203,9 @@ export interface FleetSnapshot {
   secondmates: SecondmateEntry[];
   supervision: SupervisionHealth;
   decisions: DecisionItem[];
-  /** Read-only tail of `state/.wake-queue`. */
+  /** Read-only tail of `state/.wake-queue`, surfaced wakes that escalated to firstmate. */
   wakeQueue: WakeEntry[];
-  /** Read-only tail of `state/.watch-triage.log`. */
+  /** Read-only tail of `state/.watch-triage.log`, absorbed wakes classified away by the watcher. */
   watchTriage: WatchTriageEntry[];
 }
 

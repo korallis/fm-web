@@ -2,13 +2,25 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FleetSnapshot } from "@fm-web/shared";
 import { taskDetailQueryKey } from "./useTaskDetail";
+import { homesQueryKey } from "./useHomes";
 import { connectWithBackoff } from "./wsReconnect";
 
-const FLEET_QUERY_KEY = ["fleet"] as const;
+function fleetQueryKey(homeId: string): readonly ["fleet", string] {
+  return ["fleet", homeId] as const;
+}
 
-async function fetchFleetSnapshot(): Promise<FleetSnapshot> {
-  const res = await fetch("/api/fleet");
-  if (!res.ok) throw new Error(`GET /api/fleet failed: ${res.status}`);
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function fetchFleetSnapshot(homeId: string): Promise<FleetSnapshot> {
+  const res = await fetch(`/api/fleet?home=${encodeURIComponent(homeId)}`);
+  if (!res.ok) throw new HttpError(res.status, `GET /api/fleet failed: ${res.status}`);
   return (await res.json()) as FleetSnapshot;
 }
 
@@ -26,14 +38,16 @@ export interface FleetSnapshotState {
   wsConnected: boolean;
 }
 
-/** Initial fetch via TanStack Query; every chokidar-triggered WS push replaces the cached snapshot. */
-export function useFleetSnapshot(activeTaskId: string | null = null): FleetSnapshotState {
+/** Initial fetch via TanStack Query; every chokidar-triggered WS push replaces the cached snapshot.
+ * `homeId` selects which discovered firstmate home to read (see `useHomes`/`useSelectedHomeId`). */
+export function useFleetSnapshot(homeId: string, activeTaskId: string | null = null): FleetSnapshotState {
   const queryClient = useQueryClient();
   const activeTaskIdRef = useRef(activeTaskId);
   const [wsConnected, setWsConnected] = useState(false);
+  const queryKey = fleetQueryKey(homeId);
   const query = useQuery({
-    queryKey: FLEET_QUERY_KEY,
-    queryFn: fetchFleetSnapshot,
+    queryKey,
+    queryFn: () => fetchFleetSnapshot(homeId),
     structuralSharing: (current, incoming) =>
       preferNewestSnapshot(current as FleetSnapshot | undefined, incoming as FleetSnapshot),
   });
@@ -43,24 +57,32 @@ export function useFleetSnapshot(activeTaskId: string | null = null): FleetSnaps
   }, [activeTaskId]);
 
   useEffect(() => {
+    if (query.error instanceof HttpError && query.error.status === 400)
+      void queryClient.invalidateQueries({ queryKey: homesQueryKey });
+  }, [query.error, queryClient]);
+
+  useEffect(() => {
+    const liveQueryKey = fleetQueryKey(homeId);
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/ws`;
+    const url = `${protocol}//${window.location.host}/ws?home=${encodeURIComponent(homeId)}`;
 
     const invalidateActiveTask = (): void => {
       const id = activeTaskIdRef.current;
-      if (id !== null) void queryClient.invalidateQueries({ queryKey: taskDetailQueryKey(id) });
+      if (id !== null) void queryClient.invalidateQueries({ queryKey: taskDetailQueryKey(homeId, id) });
     };
 
     return connectWithBackoff(url, {
       onStatusChange: setWsConnected,
       onOpen: () => {
-        void queryClient.invalidateQueries({ queryKey: FLEET_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: homesQueryKey });
+        void queryClient.invalidateQueries({ queryKey: liveQueryKey });
         invalidateActiveTask();
       },
       onMessage: (data) => {
         try {
           const parsed = JSON.parse(data) as FleetSnapshot;
-          queryClient.setQueryData<FleetSnapshot>(FLEET_QUERY_KEY, (current) =>
+          void queryClient.invalidateQueries({ queryKey: homesQueryKey });
+          queryClient.setQueryData<FleetSnapshot>(liveQueryKey, (current) =>
             preferNewestSnapshot(current, parsed),
           );
           invalidateActiveTask();
@@ -69,7 +91,7 @@ export function useFleetSnapshot(activeTaskId: string | null = null): FleetSnaps
         }
       },
     });
-  }, [queryClient]);
+  }, [queryClient, homeId]);
 
   return {
     snapshot: query.data,

@@ -3,6 +3,7 @@ import type { TimingConstants } from "@fm-web/shared";
 import { buildFleetSnapshot } from "./adapter/fleetState.js";
 import { buildTaskDetail } from "./adapter/taskDetail.js";
 import { isSafeTaskId } from "./adapter/paths.js";
+import { discoverHomes, resolveHomeId } from "./adapter/homes.js";
 import { discoverSkills } from "./adapter/skills.js";
 import type { ComposerQueue } from "./composer/queue.js";
 import { crossOriginResponse, isSameOriginRequest } from "./http/origin.js";
@@ -31,13 +32,18 @@ export function createApp(fmHome: string, options: SnapshotOptions = {}): Hono {
   const app = new Hono();
 
   app.get("/api/health", (c) => c.json({ ok: true, fmHome }));
-  app.get("/api/fleet", async (c) =>
-    c.json(await buildFleetSnapshot(fmHome, Date.now(), options.timing, options.captainRegex)),
-  );
+  app.get("/api/homes", (c) => c.json({ commandDeckHomeId: "primary", homes: discoverHomes(fmHome) }));
+  app.get("/api/fleet", async (c) => {
+    const home = resolveHomeId(fmHome, c.req.query("home"));
+    if (home === null) return c.json({ error: "unknown home id" }, 400);
+    return c.json(await buildFleetSnapshot(home, Date.now(), options.timing, options.captainRegex));
+  });
   app.get("/api/tasks/:id", async (c) => {
     const id = c.req.param("id");
     if (!isSafeTaskId(id)) return c.json({ error: "invalid task id" }, 400);
-    const detail = await buildTaskDetail(fmHome, id);
+    const home = resolveHomeId(fmHome, c.req.query("home"));
+    if (home === null) return c.json({ error: "unknown home id" }, 400);
+    const detail = await buildTaskDetail(home, id);
     if (detail === null) return c.json({ error: "task not found" }, 404);
     return c.json(detail);
   });

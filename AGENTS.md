@@ -12,13 +12,13 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 
 ## FM adapter + safety module
 
-`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar, plus Phase 4's watch-triage log) read-only; `taskDetail.ts` (Phase 3) composes those plus brief/report file reads and PR/merge-poll status (`state/<id>.check.sh`) into one task-detail snapshot, served at `GET /api/tasks/:id`. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. It also exports `readNoMistakesGateStatus`, a bounded, read-only call to `no-mistakes axi status` in a crew's worktree (the same non-mutating query `fm-crew-state.sh` already shells out to for every fleet task) - deliberately separate from the `bin/fm-*.sh` allowlist since `no-mistakes` is a different tool, not a firstmate script; its raw TOON output is decoded client-side with `@toon-format/toon` (`client/src/lib/decodeGateStatus.ts`) for the task-detail gate-findings panel. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
+`server/src/adapter/*` parses the Phase 1 firstmate formats (meta/status/wake-queue/lock/beacon/.afk/backlog/projects/secondmates/crew-state grammar, plus Phase 4's watch-triage log) read-only; `taskDetail.ts` (Phase 3) composes those plus brief/report file reads and PR/merge-poll status (`state/<id>.check.sh`) into one task-detail snapshot, served at `GET /api/tasks/:id?home=<id>`. `server/src/safety/{allowlist,scriptRunner}.ts` is the one guarded-execution gate - read the safety contract in the plan above before touching either. It also exports `readNoMistakesGateStatus`, a bounded, read-only call to `no-mistakes axi status` in a crew's worktree (the same non-mutating query `fm-crew-state.sh` already shells out to for every fleet task) - deliberately separate from the `bin/fm-*.sh` allowlist since `no-mistakes` is a different tool, not a firstmate script; its raw TOON output is decoded client-side with `@toon-format/toon` (`client/src/lib/decodeGateStatus.ts`) for the task-detail gate-findings panel. Tests run against the sanitized fixture home at `server/test/fixtures/fm-home/` - NEVER point tests or dev at a live firstmate home.
 
 `fm-crew-state.sh`'s `parked` state is ambiguous on its own: `source: run-step` means a no-mistakes gate is awaiting approval, while any other source means the log fallback mapped a manual `needs-decision:` status append to `parked` for display (see the reference script's `map_log_state()`). `server/src/adapter/decisions.ts` splits on `crewState.source` to recover those two distinct captain-facing categories for the decisions inbox.
 
 ## Hono + Bun websocket gotcha
 
-`hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`. Applies to both `/ws` and `/ws/session`.
+`hono/bun`'s `createBunWebSocket` reads the raw Bun `Server` back off `c.env.server`. `Bun.serve`'s `fetch` must be called as `(req, server) => app.fetch(req, { server })` - dropping the second arg makes every `/ws` upgrade 500 with `"server" in c.env is not an Object`. Applies to both `/ws` and `/ws/session`; both upgrade paths are same-origin guarded.
 
 ## Command deck (app-owned tmux session)
 
@@ -27,6 +27,33 @@ Bun workspaces: `shared/` (wire types, no runtime deps), `server/` (Bun + Hono, 
 ## TanStack Query networkMode gotcha
 
 The `QueryClient` in `client/src/main.tsx` sets `networkMode: "always"`. This app is local-only (127.0.0.1); the browser's general online/offline detection has no bearing on whether the local FM Deck server is reachable, so the default `networkMode: "online"` would pause retries incorrectly (e.g. no wifi but localhost is still right there). Separately, and NOT something to "fix": TanStack Query also pauses retries when `document.visibilityState` is `"hidden"` (a backgrounded tab) regardless of `networkMode` - this is correct, intentional behavior, and is why a query stuck retrying in an automated/background browser tab can look permanently blank; it resolves once the tab is genuinely focused.
+
+## Multi-home switcher (Phase 5)
+
+`server/src/adapter/homes.ts` discovers homes read-only: the booted primary plus every home
+registered in `data/secondmates.md` (no separate registry to invent or maintain).
+`GET /api/fleet?home=<id>`, `GET /api/tasks/:id?home=<id>`, and `GET /ws?home=<id>` resolve
+against that list (400 for an unknown id); `server/src/eventBus/homeChannels.ts` lazily keeps one
+chokidar watcher + snapshot
+broadcaster per distinct home path so a switched-home Bridge view gets its own live client set.
+The Command Deck's app-owned tmux session always stays bound to the booted primary home - only
+Bridge/task-detail views follow the switcher (`client/src/routing/useSelectedHome.ts`, persisted
+to localStorage, not the URL, since it's a navigation convenience rather than fleet domain truth).
+
+## FM_HOME must be an absolute path
+
+`server/src/index.ts` rejects a relative `FM_HOME` at startup. `bun run --cwd server dev` (and
+`--cwd client`) change the process's cwd before `index.ts` ever runs, so a relative `FM_HOME`
+silently resolves against whichever workspace script started the server instead of the shell's own
+cwd, and the app then serves an empty fleet snapshot with no error at all. Always pass an absolute
+path (e.g. `FM_HOME="$PWD/server/test/fixtures/fm-home"`).
+
+## One-command launch
+
+`bun run start` runs `scripts/start.mjs` (plain JS, deliberately outside the three typed
+workspaces and excluded from eslint/tsc in `eslint.config.js`'s ignores), which validates absolute
+`FM_HOME`, checks the configured server port is available, then spawns `dev:server` and
+`dev:client` together via `Bun.spawn`, forwarding SIGINT/SIGTERM to both.
 
 ## Maintaining this file
 
