@@ -2,11 +2,12 @@ import type { SkillEntry } from "@fm-web/shared";
 
 export interface SkillQuickActionsProps {
   skills: SkillEntry[];
+  skillInvocationPrefix: "/" | "$";
   onSelect: (skill: SkillEntry) => void;
 }
 
 /** Runtime-discovered, user-invocable skills as one-click composer prefills — never hardcoded. */
-export function SkillQuickActions({ skills, onSelect }: SkillQuickActionsProps) {
+export function SkillQuickActions({ skills, skillInvocationPrefix, onSelect }: SkillQuickActionsProps) {
   const invocable = skills.filter((skill) => skill.userInvocable);
   if (invocable.length === 0) return null;
 
@@ -20,7 +21,8 @@ export function SkillQuickActions({ skills, onSelect }: SkillQuickActionsProps) 
           onClick={() => onSelect(skill)}
           className="border border-factory-border px-2 py-1 font-mono text-[11px] text-factory-dim hover:border-factory-accent hover:text-factory-accent"
         >
-          /{skill.id}
+          {skillInvocationPrefix}
+          {skill.id}
         </button>
       ))}
     </div>

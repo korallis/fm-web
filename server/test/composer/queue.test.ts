@@ -196,6 +196,7 @@ describe("ComposerQueue.buildState / onStateChange", () => {
     const deps = makeDeps({
       isBusy: vi.fn().mockResolvedValue(true),
       getLock: vi.fn().mockResolvedValue({ pid: 123, alive: true }),
+      skillInvocationPrefix: "$",
     });
     const queue = new ComposerQueue(deps);
     const state = await queue.buildState();
@@ -203,9 +204,15 @@ describe("ComposerQueue.buildState / onStateChange", () => {
       busy: true,
       readOnly: false,
       sessionReady: true,
+      skillInvocationPrefix: "$",
       lock: { pid: 123, alive: true },
     });
     expect(state.queue).toEqual([]);
+  });
+
+  it("defaults skill quick action invocations to slash commands", async () => {
+    const queue = new ComposerQueue(makeDeps());
+    await expect(queue.buildState()).resolves.toMatchObject({ skillInvocationPrefix: "/" });
   });
 
   it("notifies listeners as entries transition status", async () => {

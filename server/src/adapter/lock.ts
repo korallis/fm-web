@@ -55,5 +55,7 @@ export function readLockInfo(fmHome: string): LockInfo {
     return { pid: UNKNOWN_LOCK_PID, alive: true };
   }
   const parsed = parseLock(content);
-  return parsed.pid === null ? parsed : { pid: parsed.pid, alive: isHarnessPidAlive(parsed.pid) };
+  return parsed.pid === null
+    ? { pid: UNKNOWN_LOCK_PID, alive: true }
+    : { pid: parsed.pid, alive: isHarnessPidAlive(parsed.pid) };
 }

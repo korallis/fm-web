@@ -14,6 +14,7 @@ export interface ComposerQueueDeps {
   isReadOnly: () => Promise<boolean>;
   getLock: () => Promise<LockInfo>;
   isSessionReady: () => Promise<boolean>;
+  skillInvocationPrefix?: "/" | "$";
   busyPollMs?: number;
 }
 
@@ -137,7 +138,14 @@ export class ComposerQueue {
       this.deps.isReadOnly(),
       this.deps.isSessionReady(),
     ]);
-    return { busy, readOnly, lock, queue: this.getEntries(), sessionReady };
+    return {
+      busy,
+      readOnly,
+      skillInvocationPrefix: this.deps.skillInvocationPrefix ?? "/",
+      lock,
+      queue: this.getEntries(),
+      sessionReady,
+    };
   }
 
   private async emitState(): Promise<void> {

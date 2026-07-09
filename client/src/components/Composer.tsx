@@ -30,6 +30,7 @@ export function Composer({ fmHome, composerState }: ComposerProps) {
   const sessionReady = composerState?.sessionReady ?? false;
   const readOnly = composerState?.readOnly ?? false;
   const busy = composerState?.busy ?? false;
+  const skillInvocationPrefix = composerState?.skillInvocationPrefix ?? "/";
   const disabled = !sessionReady || readOnly;
 
   const submit = (text: string): void => {
@@ -60,7 +61,7 @@ export function Composer({ fmHome, composerState }: ComposerProps) {
   };
 
   const selectSkill = (skill: SkillEntry): void => {
-    setDraft(`/${skill.id}`);
+    setDraft(`${skillInvocationPrefix}${skill.id}`);
     textareaRef.current?.focus();
   };
 
@@ -88,7 +89,13 @@ export function Composer({ fmHome, composerState }: ComposerProps) {
         )}
       </div>
 
-      {skills !== undefined && <SkillQuickActions skills={skills} onSelect={selectSkill} />}
+      {skills !== undefined && (
+        <SkillQuickActions
+          skills={skills}
+          skillInvocationPrefix={skillInvocationPrefix}
+          onSelect={selectSkill}
+        />
+      )}
 
       <textarea
         ref={textareaRef}

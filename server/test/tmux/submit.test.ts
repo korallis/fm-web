@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { join } from "node:path";
 import { capturePaneTail, hasSession, killSession, newSession } from "../../src/tmux/tmuxClient.js";
-import { readComposerState, selectSettleMs, submitText } from "../../src/tmux/submit.js";
+import {
+  readComposerState,
+  selectSettleMs,
+  skillInvocationPrefixForHarness,
+  submitText,
+} from "../../src/tmux/submit.js";
 
 const FIXTURE = join(import.meta.dirname, "..", "fixtures", "fake-composer.mjs");
 const BUN = process.env["BUN_PATH"] ?? process.execPath;
@@ -102,5 +107,17 @@ describe("selectSettleMs", () => {
 
   it("uses the default settle for plain text", () => {
     expect(selectSettleMs("just some text")).toBe(300);
+  });
+});
+
+describe("skillInvocationPrefixForHarness", () => {
+  it("uses codex skill syntax for normalized codex commands", () => {
+    expect(skillInvocationPrefixForHarness("codex --model gpt-5")).toBe("$");
+    expect(skillInvocationPrefixForHarness("/usr/local/bin/codex")).toBe("$");
+  });
+
+  it("uses slash command syntax by default", () => {
+    expect(skillInvocationPrefixForHarness(undefined)).toBe("/");
+    expect(skillInvocationPrefixForHarness("claude")).toBe("/");
   });
 });

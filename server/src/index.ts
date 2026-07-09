@@ -13,7 +13,7 @@ import { ComposerQueue } from "./composer/queue.js";
 import { bootstrapCommandDeck } from "./commandDeck/bootstrap.js";
 import { isFirstMateSessionReady, isLockHeldByOwnSession, isSessionBusy } from "./tmux/sessionManager.js";
 import { captureResyncSnapshot } from "./tmux/paneStream.js";
-import { submitText } from "./tmux/submit.js";
+import { skillInvocationPrefixForHarness, submitText } from "./tmux/submit.js";
 import { sendKey } from "./tmux/tmuxClient.js";
 import { isSameOriginRequest } from "./http/origin.js";
 
@@ -46,6 +46,7 @@ const composerQueue = new ComposerQueue({
   isReadOnly,
   getLock: async () => readLockInfo(fmHome),
   isSessionReady: async () => deck.target !== null && (await isFirstMateSessionReady(fmHome)),
+  skillInvocationPrefix: skillInvocationPrefixForHarness(harnessCommand),
 });
 
 const app = createApp(fmHome, {

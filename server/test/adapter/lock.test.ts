@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -39,6 +39,28 @@ describe("readLockInfo", () => {
     const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
     try {
       mkdirSync(join(fmHome, "state", ".lock"), { recursive: true });
+      expect(readLockInfo(fmHome)).toEqual({ pid: UNKNOWN_LOCK_PID, alive: true });
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when an existing lock file is malformed", () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      writeFileSync(join(fmHome, "state", ".lock"), "not-a-pid\n");
+      expect(readLockInfo(fmHome)).toEqual({ pid: UNKNOWN_LOCK_PID, alive: true });
+    } finally {
+      rmSync(fmHome, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when an existing lock file is empty", () => {
+    const fmHome = mkdtempSync(join(tmpdir(), "fm-home-"));
+    try {
+      mkdirSync(join(fmHome, "state"), { recursive: true });
+      writeFileSync(join(fmHome, "state", ".lock"), "");
       expect(readLockInfo(fmHome)).toEqual({ pid: UNKNOWN_LOCK_PID, alive: true });
     } finally {
       rmSync(fmHome, { recursive: true, force: true });

@@ -260,6 +260,7 @@ export interface ComposerState {
   busy: boolean;
   /** True when a live firstmate session other than our own owned one holds `state/.lock`. */
   readOnly: boolean;
+  skillInvocationPrefix: "/" | "$";
   lock: LockInfo;
   queue: ComposerQueueEntry[];
   sessionReady: boolean;
