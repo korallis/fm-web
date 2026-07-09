@@ -233,8 +233,8 @@ export async function readNoMistakesGateStatus(
 }
 
 /**
- * The current read-only deck refuses every mutating script categorically. The allowlist documents
- * the scripts a later mutating surface may choose from, but nothing calls through today.
+ * The current read-only deck refuses every mutating script categorically. The allowlist exists so
+ * future mutating surfaces can wire calls against it later, but nothing calls through today.
  */
 export function runMutatingScript(
   _fmHome: string,
