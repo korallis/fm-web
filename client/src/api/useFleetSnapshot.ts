@@ -47,6 +47,7 @@ export function useFleetSnapshot(homeId: string, activeTaskId: string | null = n
   }, [activeTaskId]);
 
   useEffect(() => {
+    const liveQueryKey = fleetQueryKey(homeId);
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${protocol}//${window.location.host}/ws?home=${encodeURIComponent(homeId)}`;
 
@@ -58,13 +59,13 @@ export function useFleetSnapshot(homeId: string, activeTaskId: string | null = n
     return connectWithBackoff(url, {
       onStatusChange: setWsConnected,
       onOpen: () => {
-        void queryClient.invalidateQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey: liveQueryKey });
         invalidateActiveTask();
       },
       onMessage: (data) => {
         try {
           const parsed = JSON.parse(data) as FleetSnapshot;
-          queryClient.setQueryData<FleetSnapshot>(queryKey, (current) =>
+          queryClient.setQueryData<FleetSnapshot>(liveQueryKey, (current) =>
             preferNewestSnapshot(current, parsed),
           );
           invalidateActiveTask();
@@ -73,7 +74,7 @@ export function useFleetSnapshot(homeId: string, activeTaskId: string | null = n
         }
       },
     });
-  }, [queryClient, homeId, queryKey]);
+  }, [queryClient, homeId]);
 
   return {
     snapshot: query.data,

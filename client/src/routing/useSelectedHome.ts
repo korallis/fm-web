@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "fm-deck.selected-home";
 
@@ -7,10 +7,10 @@ const STORAGE_KEY = "fm-deck.selected-home";
 export function useSelectedHomeId(): [string, (id: string) => void] {
   const [homeId, setHomeIdState] = useState(() => localStorage.getItem(STORAGE_KEY) ?? "primary");
 
-  const setHomeId = (id: string): void => {
+  const setHomeId = useCallback((id: string): void => {
     setHomeIdState(id);
     localStorage.setItem(STORAGE_KEY, id);
-  };
+  }, []);
 
   return [homeId, setHomeId];
 }

@@ -43,8 +43,8 @@ to localStorage, not the URL, since it's a navigation convenience rather than fl
 
 `server/src/index.ts` rejects a relative `FM_HOME` at startup. `bun run --cwd server dev` (and
 `--cwd client`) change the process's cwd before `index.ts` ever runs, so a relative `FM_HOME`
-silently resolves against whichever workspace script started the server - not the shell's own cwd
-- and the app then serves an empty fleet snapshot with no error at all. Always pass an absolute
+silently resolves against whichever workspace script started the server instead of the shell's own
+cwd, and the app then serves an empty fleet snapshot with no error at all. Always pass an absolute
 path (e.g. `FM_HOME="$PWD/server/test/fixtures/fm-home"`).
 
 ## One-command launch

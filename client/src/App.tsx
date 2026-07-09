@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFleetSnapshot, type FleetSnapshotState } from "./api/useFleetSnapshot";
 import { useHomes, type HomesResponse } from "./api/useHomes";
 import { interruptSession } from "./api/useComposerSend";
@@ -200,11 +200,17 @@ function buildPaletteCommands(options: {
 export function App() {
   const { taskId, openTask, closeTask } = useTaskRoute();
   const [homeId, setHomeId] = useSelectedHomeId();
-  const fleet = useFleetSnapshot(homeId, taskId);
   const homes = useHomes();
+  const selectedHomeIsKnown = homes.data?.homes.some((home) => home.id === homeId) ?? false;
+  const activeHomeId = homes.data === undefined || !selectedHomeIsKnown ? "primary" : homeId;
+  const fleet = useFleetSnapshot(activeHomeId, taskId);
   const [tab, setTab] = useState<Tab>("deck");
-  const notifications = useCaptainNotifications(homeId, fleet.snapshot?.decisions);
+  const notifications = useCaptainNotifications(activeHomeId, fleet.snapshot?.decisions);
   const [paletteOpen, setPaletteOpen] = useCommandPaletteHotkey();
+
+  useEffect(() => {
+    if (homes.data !== undefined && !selectedHomeIsKnown) setHomeId("primary");
+  }, [homes.data, selectedHomeIsKnown, setHomeId]);
 
   const openTaskFromBridge = (id: string): void => {
     setTab("bridge");
@@ -231,14 +237,14 @@ export function App() {
       <ToastStack toasts={notifications.toasts} onDismiss={notifications.dismissToast} />
       <CommandPalette open={paletteOpen} commands={paletteCommands} onClose={() => setPaletteOpen(false)} />
       {taskId !== null ? (
-        <TaskDetailPage homeId={homeId} taskId={taskId} onBack={closeTaskToBridge} />
+        <TaskDetailPage homeId={activeHomeId} taskId={taskId} onBack={closeTaskToBridge} />
       ) : (
         <Bridge
           fleet={fleet}
           tab={tab}
           onSelectTab={setTab}
           onOpenTask={openTaskFromBridge}
-          homeId={homeId}
+          homeId={activeHomeId}
           onSelectHome={setHomeId}
           homes={homes.data}
           notifyPermission={notifications.permission}
